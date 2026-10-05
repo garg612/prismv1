@@ -45,3 +45,8 @@ workflow.md
 AUTH_ARCHITECTURE.md
 /docs
 /.agent
+CLAUDE.md
+AGENTS.md
+/.claude
+/logos
+prism-backup-before-cleanup-2026-10-05.tar.gz

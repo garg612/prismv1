@@ -26,6 +26,7 @@ import {
   GitPullRequest,
   MessageSquare,
   GitBranch,
+  CheckCircle2,
 } from "lucide-react";
 
 import { useQuery } from "@tanstack/react-query";
@@ -70,50 +71,98 @@ const MainPage=()=>{
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Total Repositories</CardTitle>
-                        <GitBranch className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {isLoading ? <StatSkeleton /> : stats?.totalRepos || 0}
-                        </div>
-                        <p className="text-xs text-muted-foreground">connected repos</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Total Commits</CardTitle>
-                        <GitCommit className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {isLoading ? <StatSkeleton /> : stats?.totalCommits || 0}
-                        </div>
-                        <p className="text-xs text-muted-foreground">committed this year</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Pull Requests</CardTitle>
-                        <GitPullRequest className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {isLoading ? <StatSkeleton /> : stats?.totalPRs || 0}
-                        </div>
-                        <p className="text-xs text-muted-foreground">created</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">AI Reviews</CardTitle>
+                        <CardTitle className="text-sm font-medium">Reviews Analyzed</CardTitle>
                         <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">
                             {isLoading ? <StatSkeleton /> : stats?.totalReviews || 0}
                         </div>
-                        <p className="text-xs text-muted-foreground">completed</p>
+                        <p className="text-xs text-muted-foreground">pull requests scanned</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Findings Found</CardTitle>
+                        <GitCommit className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {isLoading ? <StatSkeleton /> : stats?.findingsAnalyzed || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">total security issues</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Findings Surfaced</CardTitle>
+                        <GitPullRequest className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                            {isLoading ? <StatSkeleton /> : stats?.findingsSurfaced || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">triaged by ML model</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Fixes Generated</CardTitle>
+                        <GitBranch className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {isLoading ? <StatSkeleton /> : stats?.fixesGenerated || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">fixes proposed</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Fixes Ready</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                            {isLoading ? <StatSkeleton /> : stats?.fixesReady || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">passed validations</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Fixes Accepted</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {isLoading ? <StatSkeleton /> : stats?.fixesAccepted || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">by developer</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Fixes Rejected</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-red-600">
+                            {isLoading ? <StatSkeleton /> : stats?.fixesRejected || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">by developer</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Fixes Applied</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">
+                            {isLoading ? <StatSkeleton /> : stats?.fixesApplied || 0}
+                        </div>
+                        <p className="text-xs text-muted-foreground">merged to GitHub</p>
                     </CardContent>
                 </Card>
             </div>

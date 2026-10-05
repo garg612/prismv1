@@ -1,0 +1,30 @@
+rules:
+  - id: prism-sql-injection
+    patterns:
+      - pattern: |
+          $DB.query("..." + $VAR + "...")
+    message: Potential SQL injection detected. Use parameterized queries.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: SECURITY
+
+  - id: prism-command-injection
+    patterns:
+      - pattern: |
+          exec($CMD)
+    message: Potential command injection detected. Avoid passing untrusted strings to exec().
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: SECURITY
+
+  - id: prism-console-log
+    patterns:
+      - pattern: |
+          console.log(...)
+    message: Debugging console.log detected. Ensure this is removed in production.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: BEST_PRACTICE

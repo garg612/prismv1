@@ -1,162 +1,64 @@
-"use client";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
-import {
-  ExternalLink,
-  Clock,
-  CheckCircle2,
-} from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
-import { getReview } from "@/modules/review/actions";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Blobatar } from "@/components/ui/blobatar";
+import { Suspense } from "react";
+import Link from "next/link";
+import { GitPullRequest } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import React from "react";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
+import { requireAuth } from "@/modules/auth/utils/authUtils";
+import { loadReviewList, REVIEW_LIST_LIMIT } from "@/modules/review/lib/load-review-list";
+import { AutoRefresh } from "@/modules/review/components/AutoRefresh";
+import { ReviewList } from "@/modules/review/components/ReviewList";
+import { ReviewsNav } from "@/modules/review/components/ReviewsNav";
 
-interface ReviewType {
-  id: string;
-  repository?: { name: string };
-  status: string;
-  createdAt: string | Date;
-  prUrl?: string;
-  prTitle?: string;
-  review?: string;
+function ListSkeleton() {
+    return (
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading reviews">
+            <div className="h-8 w-80 max-w-full animate-pulse rounded-full bg-muted" />
+            {[0, 1, 2, 3].map(i => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}
+        </div>
+    );
 }
 
-const ReviewCardItem = React.memo(({ review }: { review: ReviewType }) => {
+async function Reviews() {
+    const session = await requireAuth();
+    const { items, truncated } = await loadReviewList(session.user.id);
+
+    if (items.length === 0) {
+        return (
+            <Empty className="my-8">
+                <GitPullRequest className="mb-4 size-10 text-muted-foreground/40" aria-hidden />
+                <EmptyTitle>No reviews yet</EmptyTitle>
+                <EmptyDescription>
+                    PRism reviews a pull request as soon as it is opened or updated in a connected repository.
+                </EmptyDescription>
+                <Button asChild variant="outline" className="mt-4">
+                    <Link href="/dashboard/repository">Connect a repository</Link>
+                </Button>
+            </Empty>
+        );
+    }
 
     return (
-        <Card className="hover:shadow-md transition-all duration-200 border-border/50 bg-card overflow-hidden">
-            <CardHeader className="pb-4 border-b border-border/40 bg-muted/20">
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Blobatar name={review.repository?.name || "repo"} className="h-6 w-6 rounded-md shrink-0" blobatar={{ animate: "hover" }} />
-                            <Badge variant="secondary" className="bg-secondary/50 font-mono text-xs">
-                                {review.repository?.name}
-                            </Badge>
-                            
-                            <Badge
-                                variant={review.status === "completed" || review.status === "COMPLETED" ? "default" : "outline"}
-                                className={`capitalize text-xs ${review.status === "completed" || review.status === "COMPLETED" ? "bg-success/10 text-success hover:bg-success/20 border-success/20" : ""}`}
-                            >
-                                {review.status}
-                            </Badge>
-                        </div>
-                        
-                        <div className="flex items-center text-muted-foreground text-xs gap-1.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>
-                                {formatDistanceToNow(new Date(review.createdAt), {
-                                    addSuffix: true,
-                                })}
-                            </span>
-                        </div>
-                    </div>
-
-                    <CardTitle className="text-xl leading-tight group mt-1">
-                        <a
-                            href={review.prUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-primary transition-colors inline-flex items-baseline gap-1.5 focus-visible:outline-2 focus-visible:outline-ring rounded-sm"
-                        >
-                            <span className="line-clamp-2">{review.prTitle}</span>
-                            <ExternalLink className="w-4 h-4 text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity translate-y-0.5 shrink-0" />
-                        </a>
-                    </CardTitle>
-                </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-                <div className="relative">
-                    <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none text-foreground/90 prose-headings:font-semibold prose-a:text-primary prose-a:no-underline hover:prose-a:underline overflow-hidden max-h-[150px]">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {review.review}
-                        </ReactMarkdown>
-                    </div>
-                    
-                    <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-card to-transparent pointer-events-none" />
-                </div>
-                
-                <div className="mt-2 flex justify-center">
-                    <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        asChild
-                        className="rounded-full px-6 shadow-sm border border-border/50"
-                    >
-                        <a href={review.prUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                            View on GitHub <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
+        <>
+            <AutoRefresh active={items.some(item => item.group === "progress")} intervalMs={8000} />
+            <ReviewList items={items} />
+            {truncated && (
+                <p className="text-center text-xs text-muted-foreground">
+                    Showing the {REVIEW_LIST_LIMIT} most recently updated reviews.
+                </p>
+            )}
+        </>
     );
-});
+}
 
-ReviewCardItem.displayName = "ReviewCardItem";
-
-export default function ReviewPage() {
-    const {
-        data: reviews,
-        isLoading,
-        error
-    } = useQuery({
-        queryKey: ["reviews"],
-        queryFn: async () => {
-            return await getReview();
-        }
-    })
-
+export default function ReviewsPage() {
     return (
-        <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto">
-            <PageHeader 
-                title="Review History" 
-                description="Your latest AI-powered code review summaries."
-            />
-
-            {isLoading && (
-                <div className="flex justify-center p-8">
-                    <Spinner className="size-8 text-muted-foreground" />
-                </div>
-            )}
-
-            {error && (
-                <Empty className="my-8 border-destructive/50">
-                    <EmptyTitle>Error</EmptyTitle>
-                    <EmptyDescription>Failed to fetch reviews: {error.message}</EmptyDescription>
-                </Empty>
-            )}
-
-            {!isLoading && !error && reviews?.length === 0 && (
-                <Empty className="my-8">
-                    <CheckCircle2 className="w-12 h-12 text-muted-foreground mb-4 opacity-20" />
-                    <EmptyTitle>No reviews yet</EmptyTitle>
-                    <EmptyDescription>
-                        Your AI-powered code reviews will appear here once available.
-                    </EmptyDescription>
-                </Empty>
-            )}
-
-            {!isLoading && !error && reviews && reviews.length > 0 && (
-                <div className="grid gap-6">
-                    {reviews.map((review: ReviewType) => (
-                        <ReviewCardItem key={review.id} review={review} />
-                    ))}
-                </div>
-            )}
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+            <PageHeader title="Reviews" description="One row per pull request: what was found, what was fixed and what is still open." />
+            <ReviewsNav active="reviews" />
+            <Suspense fallback={<ListSkeleton />}>
+                <Reviews />
+            </Suspense>
         </div>
     );
 }

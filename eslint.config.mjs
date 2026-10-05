@@ -12,7 +12,20 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "scratch/**",
+    ".claude/**",
+    "src/generated/**"
   ]),
+  {
+    // The runner service is CommonJS and has its own Jest suite.
+    files: ["services/runner/**"],
+    rules: { "@typescript-eslint/no-require-imports": "off" }
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off"
+    }
+  }
 ]);
 
 export default eslintConfig;

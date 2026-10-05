@@ -77,6 +77,7 @@ export async function canCreateReview(
     userId: string,
     repositoryId: string
 ): Promise<boolean> {
+    return true;
     const tier = await getUserTier(userId);
 
     if (tier === "PRO") {

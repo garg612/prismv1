@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { BookOpen, Settings, Code2, MessageSquare, CreditCard, ChevronUp, User, LogOut, Sun, Moon, Laptop } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useQueryClient } from "@tanstack/react-query"
 import { authClient } from "@/lib/authClient"
 
 import { GithubDark } from "@/components/ui/svgs/githubDark"
@@ -44,6 +45,7 @@ export const AppSidebar = () => {
     const { setTheme } = useTheme()
     const pathName = usePathname()
     const router = useRouter()
+    const queryClient = useQueryClient()
 
     const navigationItems = [
         {
@@ -81,6 +83,8 @@ export const AppSidebar = () => {
         await authClient.signOut({
             fetchOptions: {
                 onSuccess: () => {
+                    queryClient.clear()
+                    router.refresh()
                     router.push("/login")
                 },
             },

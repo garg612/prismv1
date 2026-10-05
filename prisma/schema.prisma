@@ -1,3 +1,4 @@
+// We will replace the entire file with this
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -24,12 +25,13 @@ model User {
   repositories  Repository[]
   sessions      Session[]
 
-  usage         UserUsage?
-  subscriptionTier String @default("free")
+  usage              UserUsage?
+  subscriptionTier   String     @default("free")
   subscriptionStatus String?
 
-  polarCustomerId String? @unique
-  polarSubscriptionId String? @unique
+  polarCustomerId     String?           @unique
+  polarSubscriptionId String?           @unique
+  findingFeedback     FindingFeedback[]
 
   @@map("user")
 }
@@ -47,40 +49,59 @@ model Repository {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  review Review[]
+  review      Review[]
 
+  defaultBranch        String?
+  webhookId            String?
+  webhookSecretVersion Int?
+  fixDeliveryMode      String?
+  executionValidation  Boolean @default(false)
+  holisticReview       Boolean @default(false)
+  indexedSha           String?
+  indexState           String?
+
+  pullRequests PullRequest[]
+  reviewRuns   ReviewRun[]
+
+  @@unique([owner, name])
   @@index([userId])
   @@map("repository")
 }
 
-model Review{
-  id String @id @default(uuid())
+model Review {
+  id           String     @id @default(uuid())
   repositoryId String
-  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  prNumber Int
-  prTitle String
-  status String @default("completed")
-  prUrl String
-  review String @db.Text
-  headSha String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  prNumber     Int
+  prTitle      String
+  status       String     @default("completed")
+  prUrl        String
+  review       String     @db.Text
+  headSha      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  reviewRunId         String? @unique
+  reportJson          Json?
+  reportSchemaVersion Int?
+
+  reviewRun ReviewRun? @relation(fields: [reviewRunId], references: [id], onDelete: SetNull)
 
   @@index([repositoryId])
   @@map("review")
 }
 
-model UserUsage{
-  id String @id @default(uuid())
-  userId String @unique
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
-  repositoriesCount Int @default(0)
-  reviewsCounts Json @default("{}")
+model UserUsage {
+  id                String @id @default(uuid())
+  userId            String @unique
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoriesCount Int    @default(0)
+  reviewsCounts     Json   @default("{}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("userUsage")  
+  @@map("userUsage")
 }
 
 model Session {
@@ -131,9 +152,492 @@ model Verification {
 }
 
 model WebhookEvent {
-  id        String   @id
-  event     String
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  deliveryId   String   @unique
+  event        String
+  action       String?
+  repoGithubId BigInt?
+  payloadHash  String?
+  status       String   @default("processed")
+  receivedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@map("webhookEvent")
+}
+
+model PullRequest {
+  id               String   @id @default(uuid())
+  repositoryId     String
+  number           Int
+  title            String
+  url              String
+  authorLogin      String
+  headRef          String
+  headRepoFullName String
+  baseRef          String
+  isFork           Boolean  @default(false)
+  isDraft          Boolean  @default(false)
+  state            String   @default("open")
+  latestHeadSha    String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  repository Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  reviewRuns ReviewRun[]
+
+  @@unique([repositoryId, number])
+  @@map("pullRequest")
+}
+
+model ReviewRun {
+  id              String     @id @default(uuid())
+  pullRequestId   String
+  repositoryId    String
+  headSha         String
+  baseSha         String?
+  attempt         Int        @default(1)
+  trigger         RunTrigger
+  status          RunStatus
+  failureStage    String?
+  failureCode     String?
+  failureMessage  String?
+  supersededById  String?
+  inngestRunId    String?
+  configSnapshot  Json
+  totalFindings   Int        @default(0)
+  surfacedCount   Int        @default(0)
+  suppressedCount Int        @default(0)
+  fixesGenerated  Int        @default(0)
+  fixesReady      Int        @default(0)
+  fixesFailed     Int        @default(0)
+  billedAt        DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  updatedAt       DateTime   @updatedAt
+
+  pullRequest    PullRequest     @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  repository     Repository      @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  scanRuns       ScanRun[]
+  findings       Finding[]
+  review         Review?
+  validationRuns ValidationRun[]
+
+  @@unique([pullRequestId, headSha, attempt])
+  @@index([repositoryId, status])
+  @@map("reviewRun")
+}
+
+model ScanRun {
+  id             String        @id @default(uuid())
+  reviewRunId    String
+  suggestedFixId String?
+  kind           ScanKind
+  source         FindingSource
+  toolVersion    String?
+  rulesetId      String?
+  status         JobStatus
+  runnerJobId    String?
+  exitCode       Int?
+  durationMs     Int?
+  scannedFiles   Int?
+  skippedFiles   Int?
+  toolErrors     Json?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  reviewRun ReviewRun @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
+  findings  Finding[]
+
+  @@map("scanRun")
+}
+
+model Finding {
+  id             String          @id @default(uuid())
+  reviewRunId    String
+  scanRunId      String
+  source         FindingSource
+  ruleId         String
+  ruleName       String?
+  category       FindingCategory @default(OTHER)
+  severity       Severity
+  sourceSeverity String?
+  confidence     Confidence      @default(UNKNOWN)
+  message        String          @db.Text
+  filePath       String
+  startLine      Int
+  endLine        Int
+  startCol       Int?
+  endCol         Int?
+  language       String?
+  codeSnippet    String?         @db.Text
+  fingerprint    String
+  occurrence     Int             @default(1)
+  inChangedLines Boolean         @default(false)
+  isPreexisting  Boolean         @default(false)
+  metadata       Json?
+  status         FindingStatus
+  triageDecision TriageDecision?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  reviewRun       ReviewRun               @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
+  scanRun         ScanRun                 @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  classifications FindingClassification[]
+  feedback        FindingFeedback[]
+  fixes           SuggestedFix[]
+
+  @@unique([reviewRunId, source, fingerprint, occurrence])
+  @@index([reviewRunId, status])
+  @@index([fingerprint])
+  @@map("finding")
+}
+
+model FindingClassification {
+  id              String         @id @default(uuid())
+  findingId       String
+  modelName       String
+  modelVersion    String
+  policyVersion   String?
+  score           Float
+  modelDecision   TriageDecision
+  uncertain       Boolean        @default(false)
+  finalDecision   TriageDecision
+  decisionSource  DecisionSource
+  thresholdHigh   Float?
+  thresholdLow    Float?
+  reasonCodes     String[]       @default([])
+  reasonText      String?        @db.Text
+  isShadow        Boolean        @default(false)
+  latencyMs       Int?
+  requestId       String?
+  featureSnapshot Json?
+  createdAt       DateTime       @default(now())
+
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@map("findingClassification")
+}
+
+model FindingFeedback {
+  id             String       @id @default(uuid())
+  findingId      String
+  suggestedFixId String?
+  userId         String
+  kind           FeedbackKind
+  note           String?      @db.Text
+  createdAt      DateTime     @default(now())
+
+  finding      Finding       @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  suggestedFix SuggestedFix? @relation(fields: [suggestedFixId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One row per kind for a finding and a user, so repeating an answer cannot inflate any count.
+  @@unique([findingId, userId, kind])
+  @@index([userId, kind])
+  @@map("findingFeedback")
+}
+
+model SuggestedFix {
+  id               String      @id @default(uuid())
+  findingId        String
+  reviewRunId      String
+  attempt          Int         @default(1)
+  status           FixStatus
+  outcome          FixOutcome?
+  validatedHeadSha String?
+  llmModel         String?
+  promptVersion    String?
+  explanation      String?     @db.Text
+  reasoningSummary String?     @db.Text
+  selfConfidence   Float?
+  edits            Json
+  contextRefs      Json?
+  llmUsage         Json?
+  readyAt          DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  finding         Finding           @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  patch           Patch?
+  validationRuns  ValidationRun[]
+  applyAttempts   ApplyAttempt[]
+  findingFeedback FindingFeedback[]
+
+  @@map("suggestedFix")
+}
+
+model Patch {
+  id             String @id @default(uuid())
+  suggestedFixId String @unique
+  unifiedDiff    String @db.Text
+  diffSha256     String
+  filesChanged   Int
+  linesAdded     Int
+  linesRemoved   Int
+  baseBlobShas   Json?
+  guardReport    Json?
+
+  suggestedFix SuggestedFix @relation(fields: [suggestedFixId], references: [id], onDelete: Cascade)
+
+  @@map("patch")
+}
+
+model ValidationRun {
+  id              String         @id @default(uuid())
+  reviewRunId     String
+  suggestedFixId  String?
+  kind            ValidationKind
+  tier            ValidationTier
+  status          JobStatus
+  headSha         String
+  sandboxProvider String?
+  imageDigest     String?
+  includedFixIds  String[]       @default([])
+  limits          Json?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+
+  reviewRun         ReviewRun           @relation(fields: [reviewRunId], references: [id], onDelete: Cascade)
+  suggestedFix      SuggestedFix?       @relation(fields: [suggestedFixId], references: [id], onDelete: Cascade)
+  validationResults ValidationResult[]
+  findingDeltas     ValidationFinding[]
+
+  @@map("validationRun")
+}
+
+model ValidationResult {
+  id              String      @id @default(uuid())
+  validationRunId String
+  check           CheckName
+  status          CheckStatus
+  exitCode        Int?
+  durationMs      Int?
+  summary         String?     @db.Text
+  logExcerpt      String?     @db.Text
+
+  validationRun ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+
+  @@unique([validationRunId, check])
+  @@map("validationResult")
+}
+
+model ValidationFinding {
+  id              String       @id @default(uuid())
+  validationRunId String
+  fingerprint     String
+  ruleId          String
+  filePath        String
+  line            Int
+  severity        Severity
+  delta           FindingDelta
+
+  validationRun ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
+
+  @@map("validationFinding")
+}
+
+model ApplyAttempt {
+  id              String      @id @default(uuid())
+  suggestedFixId  String
+  userId          String
+  mode            ApplyMode
+  status          ApplyStatus
+  idempotencyKey  String      @unique
+  expectedHeadSha String
+  observedHeadSha String?
+  resultCommitSha String?
+  resultBranch    String?
+  resultPrUrl     String?
+  error           String?     @db.Text
+  createdAt       DateTime    @default(now())
+
+  suggestedFix SuggestedFix @relation(fields: [suggestedFixId], references: [id], onDelete: Cascade)
+  // user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("applyAttempt")
+}
+
+enum FindingSource {
+  SEMGREP
+  ESLINT
+  BANDIT
+  SONAR
+  DEPENDENCY
+  CUSTOM
+}
+
+enum Severity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Confidence {
+  UNKNOWN
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FindingCategory {
+  SECURITY
+  CORRECTNESS
+  PERFORMANCE
+  MAINTAINABILITY
+  STYLE
+  BEST_PRACTICE
+  OTHER
+}
+
+enum FindingStatus {
+  DETECTED
+  SUPPRESSED
+  SURFACED
+  NO_AUTOFIX
+  FIX_IN_PROGRESS
+  FIX_READY
+  FIX_FAILED
+  ACCEPTED
+  REJECTED
+  STALE
+}
+
+enum TriageDecision {
+  SURFACE
+  UNCERTAIN
+  SUPPRESS
+}
+
+enum DecisionSource {
+  POLICY
+  MODEL
+  POLICY_FALLBACK
+  POLICY_SEVERITY_FLOOR
+  OVERRIDE
+}
+
+enum RunStatus {
+  QUEUED
+  SCANNING
+  CLASSIFYING
+  FIXING
+  VALIDATING
+  REPORTING
+  AWAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum RunTrigger {
+  OPENED
+  SYNCHRONIZE
+  REOPENED
+  READY_FOR_REVIEW
+  MANUAL_RERUN
+  POST_APPLY_VERIFY
+}
+
+enum ScanKind {
+  HEAD
+  BASE
+  POST_FIX
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  TIMEOUT
+  CANCELED
+}
+
+enum FixStatus {
+  PENDING
+  GENERATING
+  GENERATED
+  GUARD_REJECTED
+  VALIDATING
+  READY
+  NOT_READY
+  IMPLEMENTING
+  IMPLEMENTED
+  IMPLEMENT_FAILED
+  REJECTED
+  STALE
+  EXPIRED
+}
+
+enum FixOutcome {
+  FIXED
+  PARTIALLY_FIXED
+  NOT_FIXED
+  NEW_FINDING_INTRODUCED
+  VALIDATION_FAILED
+  UNVERIFIED
+}
+
+enum ValidationKind {
+  BASELINE
+  FIXED
+  COMBINED
+}
+
+enum ValidationTier {
+  STATIC
+  EXECUTION
+}
+
+enum CheckName {
+  PATCH_APPLY
+  SYNTAX
+  SEMGREP_RESCAN
+  ESLINT_RESCAN
+  INSTALL
+  LINT
+  BUILD
+  TEST
+}
+
+enum CheckStatus {
+  PASSED
+  FAILED
+  SKIPPED
+  UNAVAILABLE
+  TIMEOUT
+  ERROR
+}
+
+enum FindingDelta {
+  REMOVED
+  UNCHANGED
+  ADDED
+}
+
+enum FeedbackKind {
+  FIX_ACCEPTED
+  FIX_REJECTED
+  FALSE_POSITIVE
+  TRUE_POSITIVE
+  DISMISSED
+  UNSUPPRESS_REQUEST
+}
+
+enum ApplyMode {
+  DIRECT_COMMIT
+  FIX_BRANCH_PR
+  SUGGESTION_COMMENT
+}
+
+enum ApplyStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REJECTED_STALE
 }

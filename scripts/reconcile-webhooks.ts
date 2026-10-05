@@ -1,9 +1,7 @@
 import { config } from "dotenv";
 config();
-import { PrismaClient } from "../src/generated/prisma";
+import { prisma } from "../src/lib/db";
 import { Octokit } from "octokit";
-
-const prisma = new PrismaClient();
 
 async function main() {
     console.log("Starting webhook reconciliation...");
@@ -47,7 +45,7 @@ async function main() {
                 repo: repoName,
             });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const existingHook = (hooks as any[]).find(h => h.config?.url === webhookURL);
 
             if (existingHook) {

@@ -23,8 +23,9 @@ export function DashboardBreadcrumb() {
                 {paths.map((path, index) => {
                     const href = `/${paths.slice(0, index + 1).join('/')}`
                     const isLast = index === paths.length - 1
-                    // capitalize
-                    const title = path.charAt(0).toUpperCase() + path.slice(1)
+                    // An id in the path is not a name anyone can read
+                    const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(path)
+                    const title = isId ? "Review" : path.charAt(0).toUpperCase() + path.slice(1)
                     
                     return (
                         <React.Fragment key={path}>

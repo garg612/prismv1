@@ -46,6 +46,16 @@ import { ErrorState } from "@/components/ErrorState";
 
 import { useState } from "react";
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { updateRepositorySettings, updateExecutionValidation, updateLogicReview } from "@/modules/settings/actions/index";
+import { Switch } from "@/components/ui/switch";
+
 export function RepositoryList() {
 
     const queryClient = useQueryClient();
@@ -57,6 +67,51 @@ export function RepositoryList() {
         queryFn: async () => await getConnectedRepositories(),
         staleTime: 1000 * 60 * 2,
         refetchOnWindowFocus: false
+    });
+
+    const updateModeMutation = useMutation({
+        mutationFn: async ({ id, mode }: { id: string, mode: string }) => {
+            return await updateRepositorySettings(id, mode);
+        },
+        onSuccess: (result) => {
+            if (result?.success) {
+                queryClient.invalidateQueries({ queryKey: ["connected-repositories"] });
+                toast.success("Settings updated");
+            }
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const executionMutation = useMutation({
+        mutationFn: async ({ id, enabled }: { id: string, enabled: boolean }) => {
+            return await updateExecutionValidation(id, enabled);
+        },
+        onSuccess: (result) => {
+            if (result?.success) {
+                queryClient.invalidateQueries({ queryKey: ["connected-repositories"] });
+                toast.success(result.executionValidation ? "Fixes will be tested before they are offered" : "Fixes will be checked by static analysis only");
+            }
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const logicReviewMutation = useMutation({
+        mutationFn: async ({ id, enabled }: { id: string, enabled: boolean }) => {
+            return await updateLogicReview(id, enabled);
+        },
+        onSuccess: (result) => {
+            if (result?.success) {
+                queryClient.invalidateQueries({ queryKey: ["connected-repositories"] });
+                toast.success(result.logicReview ? "Pull requests will get an AI logic review" : "AI logic review turned off");
+            }
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
     });
 
     const disconnectMutation = useMutation({
@@ -175,7 +230,7 @@ export function RepositoryList() {
             <CardContent>
                 <div className="space-y-4">
                     {repositories?.map((repo) => (
-                        <div key={repo.id} className="flex items-center justify-between p-4 border rounded-lg bg-card/50 hover:bg-muted/50 transition-colors">
+                        <div key={repo.id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border rounded-lg bg-card/50 hover:bg-muted/50 transition-colors gap-4">
                             <div className="flex flex-col gap-1.5 min-w-0">
                                 <div className="font-medium leading-none flex items-center gap-2">
                                     <span className="truncate">{repo.name}</span>
@@ -187,43 +242,87 @@ export function RepositoryList() {
                                     {repo.owner} • Added {new Date(repo.createdAt).toLocaleDateString()}
                                 </p>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <Button variant="outline" size="icon" asChild className="h-8 w-8">
-                                    <a href={repo.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${repo.name} on GitHub`}>
-                                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                                    </a>
-                                </Button>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button 
-                                            variant="destructive" 
-                                            size="icon" 
-                                            className="h-8 w-8"
-                                            disabled={disconnectMutation.isPending}
-                                            title="Disconnect Repository"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Disconnect {repo.name}?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will disconnect the repository and remove its associated webhook. This action cannot be undone.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel disabled={disconnectMutation.isPending}>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                                onClick={() => disconnectMutation.mutate(repo.id)}
+                            <div className="flex flex-wrap items-center gap-4 shrink-0">
+                                <label
+                                    className="flex items-center gap-2"
+                                    title="Runs this repository's own lint, build and test scripts in an isolated sandbox, before and after each fix. A fix that breaks them is not offered. Needs a package.json with a package-lock.json; otherwise fixes are checked by static analysis only."
+                                >
+                                    <span className="text-xs text-muted-foreground">Test fixes:</span>
+                                    <Switch
+                                        size="sm"
+                                        checked={!!repo.executionValidation}
+                                        disabled={executionMutation.isPending}
+                                        onCheckedChange={(checked) => executionMutation.mutate({ id: repo.id, enabled: checked })}
+                                        aria-label={`Run ${repo.name}'s tests on each fix`}
+                                    />
+                                </label>
+                                <label
+                                    className="flex items-center gap-2"
+                                    title="An AI model reads each pull request's changes and points out possible logic bugs that scanners cannot find. Its suggestions are shown separately, are not verified, and are never fixed automatically."
+                                >
+                                    <span className="text-xs text-muted-foreground">Logic review:</span>
+                                    <Switch
+                                        size="sm"
+                                        checked={!!repo.holisticReview}
+                                        disabled={logicReviewMutation.isPending}
+                                        onCheckedChange={(checked) => logicReviewMutation.mutate({ id: repo.id, enabled: checked })}
+                                        aria-label={`AI logic review for ${repo.name}`}
+                                    />
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">Fix Mode:</span>
+                                    <Select 
+                                        value={repo.fixDeliveryMode || "FIX_BRANCH_PR"} 
+                                        onValueChange={(v) => updateModeMutation.mutate({ id: repo.id, mode: v })}
+                                    >
+                                        <SelectTrigger className="w-[140px] h-8 text-xs">
+                                            <SelectValue placeholder="Delivery Mode" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="FIX_BRANCH_PR" className="text-xs">Stacked PR</SelectItem>
+                                            <SelectItem value="DIRECT_COMMIT" className="text-xs">Direct Commit</SelectItem>
+                                            <SelectItem value="SUGGESTION_COMMENT" className="text-xs">Suggestion</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="icon" asChild className="h-8 w-8">
+                                        <a href={repo.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${repo.name} on GitHub`}>
+                                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                                        </a>
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button 
+                                                variant="destructive" 
+                                                size="icon" 
+                                                className="h-8 w-8"
                                                 disabled={disconnectMutation.isPending}
-                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                title="Disconnect Repository"
                                             >
-                                                {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Disconnect {repo.name}?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will disconnect the repository and remove its associated webhook. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel disabled={disconnectMutation.isPending}>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={() => disconnectMutation.mutate(repo.id)}
+                                                    disabled={disconnectMutation.isPending}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                    {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                             </div>
                         </div>
                     ))}

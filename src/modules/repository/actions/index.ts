@@ -24,7 +24,7 @@ export const fetchRepositories = async (page: number, perPage: number) => {
 
         const connectedRepo = new Set(dbRepos.map((repo) => repo.githubId))
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         return repos.map((repo: any) => {
             return {
                 ...repo,
@@ -70,12 +70,17 @@ export const connectRepository = async (owner: string, repo: string, githubId: n
             await incrementRepositoryCount(session.user.id)
 
         try{
+            // Retrieve the newly created repository ID for Stage 5 indexing
+            const repository = await prisma.repository.findFirst({
+                where: { owner, name: repo, userId: session.user.id },
+            });
             await inngest.send({
                 name:"repository.connected",
                 data:{
                     owner,
                     repo,
                     userId: session.user.id,
+                    repositoryId: repository?.id ?? '',
                 }
             })
         }catch(err){

@@ -31,9 +31,9 @@ export async function getContributionStats() {
             return null
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const contributions = calendar.weeks.flatMap((week: any) => week.contributionDays)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             .map((day: any) => ({
                 date: day.date,
                 count: day.contributionCount,
@@ -60,56 +60,52 @@ export async function getDashboardStats() {
             throw new Error("Unauthorized")
         }
 
-        const token = await getGithubToken()
-        const octokit = new Octokit({ auth: token })
-
-        const { data: user } = process.env.NEXT_PUBLIC_DEMO_MODE === "true" 
-            ? { data: { login: "demo-user" } } 
-            : await octokit.rest.users.getAuthenticated()
+        const userId = session.user.id;
 
         // Fetch total connected repos from DB
         const totalRepos = await prisma.repository.count({
-            where: { userId: session.user.id }
+            where: { userId }
         })
 
-        const calendar = await fetchUserContribution(token, user.login)
-        const totalCommits = calendar?.totalContributions || 0
-
-        let totalPRs = 25;
-        if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
-            const { data: prs } = await octokit.rest.search.issuesAndPullRequests({
-                q: `author:${user.login} type:pr`,
-                sort: "created",
-                order: "desc",
-                per_page: 1
-            })
-            totalPRs = prs.total_count;
-        }
-
-        // Count AI reviews from database (through user's connected repositories)
-        const totalReviews = await prisma.review.count({
-            where: {
-                repository: {
-                    userId: session.user.id
-                }
-            }
-        })
+        // Counted from the rows themselves. The summary counters on a review are not a reliable
+        // source: they are written once and do not follow later decisions.
+        const mine = { reviewRun: { repository: { userId } } };
+        const scannerFinding = { ...mine, source: { not: "CUSTOM" as const } };
+        const [totalReviews, findingsAnalyzed, findingsSurfaced, fixesGenerated, fixesReady, fixesAccepted, fixesRejected, fixesApplied] = await Promise.all([
+            prisma.reviewRun.count({ where: { repository: { userId } } }),
+            prisma.finding.count({ where: scannerFinding }),
+            prisma.finding.count({ where: { ...scannerFinding, triageDecision: "SURFACE" } }),
+            prisma.suggestedFix.count({ where: { finding: mine, patch: { isNot: null } } }),
+            prisma.suggestedFix.count({ where: { finding: mine, status: "READY" } }),
+            prisma.suggestedFix.count({ where: { finding: mine, status: "IMPLEMENTED" } }),
+            prisma.suggestedFix.count({ where: { finding: mine, status: "REJECTED" } }),
+            prisma.applyAttempt.count({ where: { status: "SUCCEEDED", suggestedFix: { finding: mine } } }),
+        ]);
 
         return {
-            totalCommits,
-            totalPRs,
+            totalRepos,
             totalReviews,
-            totalRepos
+            findingsAnalyzed,
+            findingsSurfaced,
+            fixesGenerated,
+            fixesReady,
+            fixesAccepted,
+            fixesRejected,
+            fixesApplied
         }
 
     } catch (err) {
         console.log(err)
-        // throw new Error("Failed to fetch user contribution")
         return {
-            totalCommits: 0,
-            totalPRs: 0,
+            totalRepos: 0,
             totalReviews: 0,
-            totalRepos: 0
+            findingsAnalyzed: 0,
+            findingsSurfaced: 0,
+            fixesGenerated: 0,
+            fixesReady: 0,
+            fixesAccepted: 0,
+            fixesRejected: 0,
+            fixesApplied: 0
         }
     }
 }
@@ -168,9 +164,9 @@ export async function getMonthlyActivity() {
             monthlyData[monthKey] = { commits: 0, prs: 0, reviews: 0 };
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         calendar.weeks.forEach((week: any) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             week.contributionDays.forEach((day: any) => {
                 const date = new Date(day.date);
                 const monthKey = monthNames[date.getMonth()];
@@ -215,7 +211,7 @@ export async function getMonthlyActivity() {
                 per_page: 100,
             });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             prs.items.forEach((pr: any) => {
                 const date = new Date(pr.created_at);
                 const monthKey = monthNames[date.getMonth()];

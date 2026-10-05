@@ -7,12 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p services/runner",
     "test": "vitest run",
+    "test:e2e": "tsx --env-file=.env scripts/e2e/full-pipeline.ts",
+    "lint:colors": "bash scripts/lint-colors.sh",
     "seed:demo": "tsx prisma/seed.demo.ts",
     "seed:demo:reset": "tsx prisma/seed.demo.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.76",
+    "@ai-sdk/groq": "^4.0.54",
     "@base-ui/react": "^1.8.0",
     "@blobatar/react": "^2.7.0",
     "@pinecone-database/pinecone": "^9.0.0",
@@ -31,6 +35,7 @@
     "cmdk": "^1.1.1",
     "cn": "^0.3.0",
     "date-fns": "^4.4.0",
+    "diff": "^9.0.0",
     "embla-carousel-react": "^8.6.0",
     "inngest": "^4.20.0",
     "input-otp": "^1.5.0",
@@ -59,6 +64,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.20",
+    "@types/diff": "^7.0.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

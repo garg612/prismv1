@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server";
-import { inngest } from "@/inngest/client";
 import { verifyGitHubWebhookSignature } from "@/modules/github/lib/webhook-verify";
 import prisma from "@/lib/db";
+import { inngest } from "@/inngest/client";
+import { enqueueReviewRequested } from "@/modules/review/lib/enqueue";
 
 export async function POST(request: NextRequest) {
     try {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
         try {
             await prisma.webhookEvent.create({
                 data: {
-                    id: deliveryId,
+                    deliveryId,
                     event: event || "unknown"
                 }
             });
@@ -42,23 +43,83 @@ export async function POST(request: NextRequest) {
         if (event === "pull_request") {
             const action = body.action;
             const repo = body.repository?.full_name;
+            const repositoryGithubId = body.repository?.id;
             const prNumber = body.number;
+            const headSha = body.pull_request?.head?.sha;
 
-            if (!repo) {
+            if (!repo || !repositoryGithubId || !headSha) {
                  return NextResponse.json({ message: "Invalid payload" }, { status: 400 });
             }
 
             const [owner, repoName] = repo.split("/");
 
             if (action === "opened" || action === "synchronize") {
-                await inngest.send({
-                    name: "pr.review.requested",
-                    data: {
-                        owner,
-                        repo: repoName,
-                        prNumber
+                if (body.pull_request?.head?.ref?.startsWith("prism/fix/")) {
+                    return NextResponse.json({ message: "Ignored PRism fix branch" }, { status: 202 });
+                }
+
+                let finalAction = action;
+                if (action === "synchronize") {
+                    const applyAttempt = await prisma.applyAttempt.findFirst({
+                        where: { resultCommitSha: headSha, status: "SUCCEEDED" }
+                    });
+                    if (applyAttempt) {
+                        finalAction = "POST_APPLY_VERIFY";
                     }
+                }
+
+                await enqueueReviewRequested({
+                    repositoryGithubId,
+                    prNumber,
+                    headSha,
+                    action: finalAction,
+                    deliveryId,
+                    owner,
+                    repo: repoName
                 });
+            }
+        }
+
+        // Stage 5: handle default-branch push for incremental reindexing
+        if (event === "push") {
+            const pushRef = body.ref as string | undefined;
+            const repositoryGithubId = body.repository?.id;
+            const newSha = body.after as string | undefined;
+            const previousSha = body.before as string | undefined;
+
+            if (pushRef && repositoryGithubId && newSha && newSha !== '0000000000000000000000000000000000000000') {
+                // Find connected repository
+                const repository = await prisma.repository.findFirst({
+                    where: { githubId: BigInt(repositoryGithubId) },
+                    include: { user: { include: { accounts: { where: { providerId: "github" } } } } },
+                });
+
+                if (repository) {
+                    const defaultBranch = repository.defaultBranch ?? 'main';
+                    const branchName = pushRef.replace('refs/heads/', '');
+
+                    // Only reindex pushes to the default branch
+                    if (branchName === defaultBranch) {
+                        const [owner, repo] = repository.fullName.split('/');
+                        const userId = repository.userId;
+
+                        // Prevent duplicate indexing for same SHA
+                        if (repository.indexedSha !== newSha) {
+                            await inngest.send({
+                                name: "repository.pushed",
+                                data: {
+                                    repositoryId: repository.id,
+                                    owner,
+                                    repo,
+                                    userId,
+                                    newSha,
+                                    previousSha: previousSha || repository.indexedSha || null,
+                                    branch: branchName,
+                                },
+                            });
+                        }
+                    }
+                }
             }
         }
 

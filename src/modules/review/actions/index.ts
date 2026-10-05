@@ -15,7 +15,7 @@ export async function getReview(){
         throw new Error("User not authenticated");
     }
 
-    const reviews =await prisma.review.findMany({
+    const reviews =await prisma.reviewRun.findMany({
         where:{
             repository:{
                 userId:session.user.id
@@ -23,9 +23,10 @@ export async function getReview(){
         },
         include:{
             repository:true,
+            pullRequest:true
         },
         orderBy:{
-            createdAt:"desc"
+            updatedAt:"desc"
         },
         take:50
     })
