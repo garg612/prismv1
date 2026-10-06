@@ -109,7 +109,7 @@ export const FORBIDDEN_ENV_VARS = [
 const ALLOWED_SANDBOX_ENV: Record<string, string> = {
     CI: 'true',
     NODE_ENV: 'test',
-    HOME: '/workspace',
+    HOME: '/home/user',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/share/.config/yarn/global/node_modules/.bin',
 };
 
@@ -435,15 +435,28 @@ export async function runExecValidate(
                 }
             } catch (e: any) {
                 const isTimeout = e.isTimeout || (e.message && e.message.toLowerCase().includes('timeout'));
-                results[check] = {
-                    status: isTimeout ? 'TIMEOUT' : 'ERROR',
-                    exitCode: 1,
-                    duration: Date.now() - startTime,
-                    log: '',
-                    error: e.message,
-                    timedOut: isTimeout,
-                };
-                if (check === 'INSTALL' || check === 'BUILD') failedFast = true;
+                if (e.result && typeof e.result.exitCode === 'number') {
+                    const rawLog = `${e.result.stdout || ''}\n${e.result.stderr || ''}`;
+                    const cleanLog = redactLog(rawLog);
+                    results[check] = {
+                        status: 'FAILED',
+                        exitCode: e.result.exitCode,
+                        duration: Date.now() - startTime,
+                        log: cleanLog,
+                        error: e.result.error || e.message
+                    };
+                    if (check === 'INSTALL' || check === 'BUILD') failedFast = true;
+                } else {
+                    results[check] = {
+                        status: isTimeout ? 'TIMEOUT' : 'ERROR',
+                        exitCode: 1,
+                        duration: Date.now() - startTime,
+                        log: '',
+                        error: e.message,
+                        timedOut: isTimeout,
+                    };
+                    if (check === 'INSTALL' || check === 'BUILD') failedFast = true;
+                }
             }
         }
 

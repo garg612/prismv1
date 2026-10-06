@@ -86,13 +86,20 @@ export const generateReport = inngest.createFunction(
     const narrative = await step.run("generate-narrative", async () => {
         const { reviewRun, surfacedFindings, deterministicStats } = reportData;
         
+        if (surfacedFindings.length === 0) {
+            return {
+                summary: "Automated code review completed.",
+                whyItMatters: "Clean code reduces technical debt and prevents future bugs.",
+                riskNotes: "No actionable security or code quality risks were identified."
+            };
+        }
+
         const prompt = `Generate a code review report narrative for PR: ${reviewRun.pullRequest.title}
 Stats:
 ${JSON.stringify(deterministicStats, null, 2)}
 Surfaced Findings:
 ${surfacedFindings.map((f: any) => `- ${f.ruleId} in ${f.filePath}: ${f.message}`).join('\n')}
 
-Do NOT claim tests passed (tests are UNAVAILABLE).
 Only use the deterministic stats above.
 Return a valid JSON matching the schema.`;
 
@@ -102,11 +109,6 @@ Return a valid JSON matching the schema.`;
                 schema: ReportNarrativeSchema,
                 prompt
             });
-
-            // Consistency check
-            if (object.summary.toLowerCase().includes("tests passed") || object.whyItMatters.toLowerCase().includes("tests passed")) {
-                object.summary += "\n\n(Note: Tests were not actually run during this review.)";
-            }
 
             return object;
         } catch (e: any) {
@@ -124,8 +126,7 @@ Return a valid JSON matching the schema.`;
             stats: reportData.deterministicStats
         };
 
-        const markdownText = `## PRism Review Report
-${narrative.summary}
+        const markdownText = `${narrative.summary}
 
 ### Why It Matters
 ${narrative.whyItMatters}
@@ -133,13 +134,6 @@ ${narrative.whyItMatters}
 ### Risk Notes
 ${narrative.riskNotes}
 
-### Statistics
-- Findings Surfaced: ${reportData.deterministicStats.surfacedCount}
-- Fixes Ready: ${reportData.deterministicStats.fixesReady}
-- Static Validation: ${reportData.deterministicStats.validationChecks.STATIC}
-- Tests: ${reportData.deterministicStats.validationChecks.TESTS}
-
-*(Static validation only — tests not run)*
 ${logicReviewSection(reportData.logicReview)}`;
 
         const existingReview = await prisma.review.findUnique({

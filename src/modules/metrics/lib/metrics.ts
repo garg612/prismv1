@@ -9,7 +9,7 @@ import { LOGIC_REVIEW_SOURCE } from "@/modules/logic-review/lib/schema";
 /** A rate over fewer decisions than this is reported as "not enough data", never as a percentage. */
 export const MIN_SAMPLE = 5;
 
-export type Verdict = "REAL" | "FALSE_ALARM";
+export type Verdict = "REAL" | "FALSE_ALARM" | "NOISE";
 
 export interface MetricFeedback {
     kind: string;
@@ -73,7 +73,7 @@ export interface Metrics {
         untriaged: number;
     };
     /** Shown scanner issues that were judged, and how many of those were false alarms */
-    falseAlarms: Rate & { real: number; unjudged: number };
+    falseAlarms: Rate & { real: number; noise?: number; unjudged: number };
     fixes: Rate & { rejected: number; waiting: number; validated: number };
     funnel: FunnelStage[];
     weeks: WeekPoint[];
@@ -98,16 +98,20 @@ const rate = (count: number, of: number): Rate => ({ count, of, value: of >= MIN
  */
 export function verdictOf(feedback: MetricFeedback[], fixes: Array<{ status: string }>): Verdict | null {
     const explicit = feedback
-        .filter(f => f.kind === "TRUE_POSITIVE" || f.kind === "FALSE_POSITIVE")
+        .filter(f => f.kind === "TRUE_POSITIVE" || f.kind === "FALSE_POSITIVE" || f.kind === "MARK_AS_NOISE")
         .sort((a, b) => time(b.createdAt) - time(a.createdAt))[0];
-    if (explicit) return explicit.kind === "FALSE_POSITIVE" ? "FALSE_ALARM" : "REAL";
+    if (explicit) {
+        if (explicit.kind === "FALSE_POSITIVE") return "FALSE_ALARM";
+        if (explicit.kind === "MARK_AS_NOISE") return "NOISE";
+        return "REAL";
+    }
     if (fixes.some(f => f.status === "IMPLEMENTED") || feedback.some(f => f.kind === "FIX_ACCEPTED")) return "REAL";
     return null;
 }
 
 /** The user's own latest "real / false alarm" answer, ignoring anything inferred from fixes. */
 export function explicitVerdictOf(feedback: MetricFeedback[]): Verdict | null {
-    return verdictOf(feedback.filter(f => f.kind === "TRUE_POSITIVE" || f.kind === "FALSE_POSITIVE"), []);
+    return verdictOf(feedback.filter(f => f.kind === "TRUE_POSITIVE" || f.kind === "FALSE_POSITIVE" || f.kind === "MARK_AS_NOISE"), []);
 }
 
 interface Issue {
@@ -175,6 +179,8 @@ export function buildMetrics(findings: MetricFinding[], range: { from: Date; to:
 
     const shownReal = count(shown, "REAL");
     const shownFalse = count(shown, "FALSE_ALARM");
+    const shownNoise = count(shown, "NOISE");
+    const unjudged = Math.max(0, shown.length - shownFalse - shownReal - shownNoise);
 
     const fixes = scanner.flatMap(i => Array.from(i.fixes.values()));
     const accepted = fixes.filter(f => f.status === "IMPLEMENTED");
@@ -210,7 +216,7 @@ export function buildMetrics(findings: MetricFinding[], range: { from: Date; to:
 
     return {
         issues: { total: scanner.length, shown: shown.length, filtered: filtered.length, untriaged },
-        falseAlarms: { ...rate(shownFalse, shownFalse + shownReal), real: shownReal, unjudged: shown.length - shownFalse - shownReal },
+        falseAlarms: { ...rate(shownFalse, shownFalse + shownReal), real: shownReal, noise: shownNoise, unjudged },
         fixes: { ...rate(accepted.length, accepted.length + rejected.length), rejected: rejected.length, waiting: waiting.length, validated: validatedIssues.length },
         funnel: [
             { key: "found", label: "Found by scanners", count: scanner.length, note: "" },

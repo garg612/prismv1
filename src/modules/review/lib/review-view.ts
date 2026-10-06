@@ -47,7 +47,8 @@ export interface FixView {
     diff: DiffLine[];
     linesAdded: number;
     linesRemoved: number;
-    checks: CheckView[];
+    staticChecks: CheckView[];
+    execChecks: CheckView[];
     /** One sentence about test/build execution; null when execution checks are listed in `checks` */
     executionNote: string | null;
     applied: AppliedView | null;
@@ -248,37 +249,42 @@ function scannersUsed(run: any): string {
     return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-function buildChecks(fix: any, finding: any, executionEnabled: boolean): { checks: CheckView[]; executionNote: string | null } {
+function buildChecks(fix: any, finding: any, executionEnabled: boolean): { staticChecks: CheckView[]; execChecks: CheckView[]; executionNote: string | null } {
     const runs: any[] = fix.validationRuns || [];
     const staticRun = runs.find(r => r.tier === "STATIC");
-    const checks: CheckView[] = [];
+    const staticChecks: CheckView[] = [];
+    const execChecks: CheckView[] = [];
 
     if (staticRun) {
-        const result = (name: string) => (staticRun.validationResults || []).find((r: any) => r.check === name);
-        for (const name of ["PATCH_APPLY", "SYNTAX"]) {
-            const r = result(name);
-            if (r) checks.push({ label: STATIC_CHECK_LABEL[name], state: r.status === "PASSED" ? "passed" : "failed" });
-        }
+        if (staticRun.status === "PENDING" || staticRun.status === "RUNNING") {
+            staticChecks.push({ label: "Syntax and resolution checks", state: "running" as any });
+        } else {
+            const result = (name: string) => (staticRun.validationResults || []).find((r: any) => r.check === name);
+            for (const name of ["PATCH_APPLY", "SYNTAX"]) {
+                const r = result(name);
+                if (r) staticChecks.push({ label: STATIC_CHECK_LABEL[name], state: r.status === "PASSED" ? "passed" : "failed" });
+            }
 
-        const scannerName = scannerDisplayName(finding.source);
-        const rescan = (staticRun.validationResults || []).find((r: any) => isRescanCheck(r.check));
-        if (rescan) {
-            const deltas: any[] = staticRun.findingDeltas || [];
-            const added = deltas.filter(d => d.delta === "ADDED");
-            const target = deltas.find(d => d.delta !== "ADDED" && d.ruleId === finding.ruleId);
-            if (rescan.status !== "PASSED") {
-                checks.push({ label: `Re-scan with ${scannerName}`, state: "failed", detail: "the re-scan did not complete" });
-            } else {
-                checks.push(
-                    target?.delta === "REMOVED"
-                        ? { label: `${scannerName} no longer reports this issue`, state: "passed" }
-                        : { label: `${scannerName} no longer reports this issue`, state: "failed", detail: "still reported after the change" }
-                );
-                checks.push(
-                    added.length === 0
-                        ? { label: "No new issues introduced", state: "passed" }
-                        : { label: "No new issues introduced", state: "failed", detail: `introduces ${added.map(d => d.ruleId).join(", ")}` }
-                );
+            const scannerName = scannerDisplayName(finding.source);
+            const rescan = (staticRun.validationResults || []).find((r: any) => isRescanCheck(r.check));
+            if (rescan) {
+                const deltas: any[] = staticRun.findingDeltas || [];
+                const added = deltas.filter(d => d.delta === "ADDED");
+                const target = deltas.find(d => d.delta !== "ADDED" && d.ruleId === finding.ruleId);
+                if (rescan.status !== "PASSED") {
+                    staticChecks.push({ label: `Re-scan with ${scannerName}`, state: "failed", detail: "the re-scan did not complete" });
+                } else {
+                    staticChecks.push(
+                        target?.delta === "REMOVED"
+                            ? { label: `${scannerName} no longer reports this issue`, state: "passed" }
+                            : { label: `${scannerName} no longer reports this issue`, state: "failed", detail: "still reported after the change" }
+                    );
+                    staticChecks.push(
+                        added.length === 0
+                            ? { label: "No new issues introduced", state: "passed" }
+                            : { label: "No new issues introduced", state: "failed", detail: `introduces ${added.map(d => d.ruleId).join(", ")}` }
+                    );
+                }
             }
         }
     }
@@ -287,7 +293,8 @@ function buildChecks(fix: any, finding: any, executionEnabled: boolean): { check
     const fixed = runs.find(r => r.tier === "EXECUTION" && r.kind === "FIXED");
     if (!fixed) {
         return {
-            checks,
+            staticChecks,
+            execChecks,
             executionNote: executionEnabled
                 ? "Tests were not run for this fix."
                 : "Tests were not run: execution validation is turned off for this repository, so this fix was checked by static analysis only.",
@@ -300,13 +307,18 @@ function buildChecks(fix: any, finding: any, executionEnabled: boolean): { check
         ? fixedResults.find(r => r.summary)?.summary
         : null;
     if (fixed.status === "COMPLETED" && skippedReason) {
-        return { checks, executionNote: `${skippedReason} This fix was checked by static analysis only.` };
+        return { staticChecks, execChecks, executionNote: `${skippedReason} This fix was checked by static analysis only.` };
     }
 
     // Execution was attempted but could not start (no sandbox, isolation not established...)
     const didNotRun = (fixed.validationResults || []).find((r: any) => String(r.summary || "").startsWith("Execution validation did not run"));
+    if (fixed.status === "PENDING" || fixed.status === "RUNNING") {
+        execChecks.push({ label: "Installing dependencies and running checks", state: "running" as any });
+        return { staticChecks, execChecks, executionNote: null };
+    }
+    
     if (fixed.status !== "COMPLETED" || didNotRun) {
-        return { checks, executionNote: didNotRun?.summary || "Tests could not be run for this fix." };
+        return { staticChecks, execChecks, executionNote: didNotRun?.summary || "Tests could not be run for this fix." };
     }
 
     for (const name of Object.keys(EXEC_CHECK_LABEL)) {
@@ -314,12 +326,12 @@ function buildChecks(fix: any, finding: any, executionEnabled: boolean): { check
         const f = (fixed.validationResults || []).find((r: any) => r.check === name)?.status;
         if (!b && !f) continue;
         const label = EXEC_CHECK_LABEL[name];
-        if (b === "PASSED" && f === "PASSED") checks.push({ label, state: "passed", detail: "passes before and after the change" });
-        else if (b === "PASSED") checks.push({ label, state: "failed", detail: "passed before the change, fails after it" });
-        else if (b === "UNAVAILABLE" || f === "UNAVAILABLE" || !b || !f) checks.push({ label, state: "notRun", detail: "not available in this repository" });
-        else checks.push({ label, state: "notRun", detail: "was already failing before the change, so it proves nothing" });
+        if (b === "PASSED" && f === "PASSED") execChecks.push({ label, state: "passed", detail: "passes before and after the change" });
+        else if (b === "PASSED") execChecks.push({ label, state: "failed", detail: "passed before the change, fails after it" });
+        else if (b === "UNAVAILABLE" || f === "UNAVAILABLE" || !b || !f) execChecks.push({ label, state: "notRun", detail: "not available in this repository" });
+        else execChecks.push({ label, state: "notRun", detail: "was already failing before the change, so it proves nothing" });
     }
-    return { checks, executionNote: null };
+    return { staticChecks, execChecks, executionNote: null };
 }
 
 const OUTCOME_PROBLEM: Record<string, string> = {
@@ -391,7 +403,7 @@ function describeApplied(fix: any, verified: boolean): AppliedView | null {
 function buildFix(fix: any, finding: any, run: any, verified: boolean, attempts: number): FixView {
     const working = WORKING_FIX.includes(fix.status);
     const status = FIX_STATUS[fix.status] ?? { label: working ? "Working on a fix" : fix.status, tone: "info" as Tone };
-    const { checks, executionNote } = buildChecks(fix, finding, !!run.repository?.executionValidation);
+    const { staticChecks, execChecks, executionNote } = buildChecks(fix, finding, !!run.repository?.executionValidation);
 
     // A failed apply writes nothing to the repository, so the fix stays open for another attempt.
     const decidable = fix.status === "READY" || fix.status === "IMPLEMENT_FAILED";
@@ -414,7 +426,8 @@ function buildFix(fix: any, finding: any, run: any, verified: boolean, attempts:
         diff: parseUnifiedDiff(fix.patch?.unifiedDiff),
         linesAdded: fix.patch?.linesAdded ?? 0,
         linesRemoved: fix.patch?.linesRemoved ?? 0,
-        checks,
+        staticChecks,
+        execChecks,
         executionNote: fix.patch ? executionNote : null,
         applied: describeApplied(fix, verified),
         canDecide,

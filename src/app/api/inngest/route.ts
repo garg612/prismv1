@@ -8,8 +8,10 @@ import { processFinding } from "@/inngest/functions/process-finding";
 import { generateReport } from "@/inngest/functions/generate-report";
 import { validateCombined } from "@/inngest/functions/validate-combined";
 import { exportDataset } from "@/inngest/functions/export-dataset";
+import { aggregateMetrics } from "@/inngest/functions/aggregate-metrics";
+import { promoteGlobalRules } from "@/inngest/functions/promote-global-rules";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [indexRepo, indexRepoV2, generateReview, reviewRunOrchestrator, reindexIncremental, processFinding, generateReport, validateCombined, exportDataset],
+  functions: [indexRepo, indexRepoV2, generateReview, reviewRunOrchestrator, reindexIncremental, processFinding, generateReport, validateCombined, exportDataset, aggregateMetrics, promoteGlobalRules],
 });

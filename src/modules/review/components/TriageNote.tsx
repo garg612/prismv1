@@ -15,10 +15,10 @@ export function TriageNote({ reason, triage, shown }: { reason: string; triage: 
             <div className="flex items-start gap-2.5">
                 <Icon className={`mt-0.5 size-4 shrink-0 ${shown ? "text-primary-text" : "text-muted-foreground"}`} aria-hidden />
                 <div className="min-w-0">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {shown ? "Why you are seeing this" : "Why this was filtered out"}
+                    <div className="text-sm font-medium text-muted-foreground">
+                        {shown ? "Why this was highlighted" : "Automatically filtered as noise"}
                     </div>
-                    {reason && <p className="text-sm text-pretty">{reason}</p>}
+                    {reason && <p className="text-sm text-pretty mt-1">{reason}</p>}
                 </div>
             </div>
 

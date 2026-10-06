@@ -1,11 +1,12 @@
 import prisma from "@/lib/db";
 import { LOGIC_REVIEW_SOURCE } from "@/modules/logic-review/lib/schema";
+import { FalseAlarmReason } from "@/generated/prisma/client";
 
-export const FEEDBACK_ACTIONS = ["TRUE_POSITIVE", "FALSE_POSITIVE", "CLEAR", "UNSUPPRESS"] as const;
+export const FEEDBACK_ACTIONS = ["TRUE_POSITIVE", "FALSE_POSITIVE", "CLEAR", "UNSUPPRESS", "MARK_AS_NOISE"] as const;
 export type FeedbackAction = (typeof FEEDBACK_ACTIONS)[number];
 
 export type FeedbackResult =
-    | { ok: true; verdict: "REAL" | "FALSE_ALARM" | null; unsuppressed: boolean }
+    | { ok: true; verdict: "REAL" | "FALSE_ALARM" | "NOISE" | null; unsuppressed: boolean }
     | { ok: false; status: 404 | 409; error: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,13 +20,13 @@ const SETTLED_RUN = ["AWAITING_APPROVAL", "COMPLETED"];
  * An answer replaces the previous one, so answering again (or a thousand times) leaves exactly
  * one answer for this finding and this user.
  */
-export async function recordFeedback(userId: string, findingId: string, action: FeedbackAction): Promise<FeedbackResult> {
+export async function recordFeedback(userId: string, findingId: string, action: FeedbackAction, reason?: FalseAlarmReason): Promise<FeedbackResult> {
     const notFound: FeedbackResult = { ok: false, status: 404, error: "Finding not found" };
     if (!UUID.test(findingId)) return notFound;
 
     const finding = await prisma.finding.findFirst({
         where: { id: findingId, reviewRun: { repository: { userId } } },
-        select: { id: true, source: true, triageDecision: true, reviewRunId: true, reviewRun: { select: { status: true } } },
+        select: { id: true, source: true, triageDecision: true, reviewRunId: true, ruleId: true, fingerprint: true, reviewRun: { select: { status: true, repositoryId: true } } },
     });
     if (!finding) return notFound;
 
@@ -60,6 +61,22 @@ export async function recordFeedback(userId: string, findingId: string, action: 
                 update: {},
             });
             await tx.reviewRun.update({ where: { id: finding.reviewRunId }, data: { surfacedCount: { increment: 1 }, suppressedCount: { decrement: previous === "SUPPRESS" ? 1 : 0 } } });
+
+            if (process.env.FEEDBACK_RULES === 'local' || process.env.FEEDBACK_RULES === 'global') {
+                const ruleWhere = { scope_ruleId_repositoryId_fingerprint: { scope: 'REPOSITORY', ruleId: finding.ruleId, repositoryId: finding.reviewRun.repositoryId, fingerprint: '' } };
+                const fingerprintVal = finding.fingerprint || '';
+                
+                // Prisma requires strict match on unique constraint, we use fingerprint: '' if null for simplicity, or we can just use findFirst then create/update to be safe with nulls.
+                const existingRule = await tx.feedbackRule.findFirst({
+                    where: { scope: 'REPOSITORY', ruleId: finding.ruleId, repositoryId: finding.reviewRun.repositoryId, fingerprint: finding.fingerprint }
+                });
+                if (existingRule) {
+                    await tx.feedbackRule.update({ where: { id: existingRule.id }, data: { action: 'SURFACE', status: 'ACTIVE', evidenceCount: { increment: 1 } } });
+                } else {
+                    await tx.feedbackRule.create({ data: { scope: 'REPOSITORY', ruleId: finding.ruleId, repositoryId: finding.reviewRun.repositoryId, fingerprint: finding.fingerprint, action: 'SURFACE', status: 'ACTIVE' } });
+                }
+            }
+
             return true;
         });
         if (!changed) return { ok: false, status: 409, error: "This issue is not filtered out." };
@@ -68,19 +85,45 @@ export async function recordFeedback(userId: string, findingId: string, action: 
 
     const where = { findingId: finding.id, userId };
     if (action === "CLEAR") {
-        await prisma.findingFeedback.deleteMany({ where: { ...where, kind: { in: ["TRUE_POSITIVE", "FALSE_POSITIVE"] } } });
+        await prisma.findingFeedback.deleteMany({ where: { ...where, kind: { in: ["TRUE_POSITIVE", "FALSE_POSITIVE", "MARK_AS_NOISE"] } } });
         return { ok: true, verdict: null, unsuppressed: false };
     }
 
-    const other = action === "TRUE_POSITIVE" ? "FALSE_POSITIVE" : "TRUE_POSITIVE";
-    await prisma.$transaction([
-        prisma.findingFeedback.deleteMany({ where: { ...where, kind: other } }),
-        prisma.findingFeedback.upsert({
+    const feedbackReason = (action === "FALSE_POSITIVE" || action === "MARK_AS_NOISE") ? reason : undefined;
+    
+    await prisma.$transaction(async (tx) => {
+        await tx.findingFeedback.deleteMany({ where: { ...where, kind: { in: ["TRUE_POSITIVE", "FALSE_POSITIVE", "MARK_AS_NOISE"], not: action } } });
+        await tx.findingFeedback.upsert({
             where: { findingId_userId_kind: { ...where, kind: action } },
-            create: { ...where, kind: action },
+            create: { ...where, kind: action, reason: feedbackReason },
             // Re-stamp, so that the newest answer is always the one that counts.
-            update: { createdAt: new Date() },
-        }),
-    ]);
-    return { ok: true, verdict: action === "FALSE_POSITIVE" ? "FALSE_ALARM" : "REAL", unsuppressed: false };
+            update: { createdAt: new Date(), reason: feedbackReason ?? null },
+        });
+
+        if (process.env.FEEDBACK_RULES === 'local' || process.env.FEEDBACK_RULES === 'global') {
+            const ruleAction = (action === "FALSE_POSITIVE" || action === "MARK_AS_NOISE") ? 'SUPPRESS' : 'SURFACE';
+            
+            const existingRule = await tx.feedbackRule.findFirst({
+                where: { scope: 'REPOSITORY', ruleId: finding.ruleId, repositoryId: finding.reviewRun.repositoryId, fingerprint: finding.fingerprint }
+            });
+            if (existingRule) {
+                await tx.feedbackRule.update({ where: { id: existingRule.id }, data: { action: ruleAction, status: 'ACTIVE', evidenceCount: { increment: 1 } } });
+            } else {
+                await tx.feedbackRule.create({ data: { scope: 'REPOSITORY', ruleId: finding.ruleId, repositoryId: finding.reviewRun.repositoryId, fingerprint: finding.fingerprint, action: ruleAction, status: 'ACTIVE' } });
+            }
+        }
+        
+        // Ensure the current finding reflects the new decision visually
+        const newTriageDecision = (action === "FALSE_POSITIVE" || action === "MARK_AS_NOISE") ? "SUPPRESS" : "SURFACE";
+        await tx.finding.update({
+            where: { id: finding.id },
+            data: { triageDecision: newTriageDecision }
+        });
+    });
+
+    let verdict: "REAL" | "FALSE_ALARM" | "NOISE" = "REAL";
+    if (action === "FALSE_POSITIVE") verdict = "FALSE_ALARM";
+    if (action === "MARK_AS_NOISE") verdict = "NOISE";
+
+    return { ok: true, verdict, unsuppressed: true };
 }

@@ -3,8 +3,9 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { FEEDBACK_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { FEEDBACK_ACTIONS, recordFeedback } from "@/modules/review/lib/feedback";
+import { FalseAlarmReason } from "@/generated/prisma/client";
 
-const FeedbackSchema = z.object({ action: z.enum(FEEDBACK_ACTIONS) }).strict();
+const FeedbackSchema = z.object({ action: z.enum(FEEDBACK_ACTIONS), reason: z.nativeEnum(FalseAlarmReason).optional() }).strict();
 const MAX_BODY_BYTES = 256;
 
 const json = (body: unknown, status: number, headers?: Record<string, string>) => NextResponse.json(body, { status, headers });
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Ownership is part of the lookup (repository: { userId: session.user.id }), so a finding in
     // someone else's repository is indistinguishable from one that does not exist.
     const { id } = await params;
-    const result = await recordFeedback(session.user.id, id, parsed.data.action);
+    const result = await recordFeedback(session.user.id, id, parsed.data.action, parsed.data.reason);
     if (!result.ok) return json({ error: result.error }, result.status);
     return json({ verdict: result.verdict, unsuppressed: result.unsuppressed }, 200);
 }

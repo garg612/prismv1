@@ -43,7 +43,7 @@ export function getFinalDecision(
     mode: 'policy' | 'shadow' | 'model', 
     mlScore?: number,
     thresholds: ScoreThresholds = DEFAULT_THRESHOLDS
-): { finalDecision: TriageDecision, decisionSource: 'POLICY' | 'MODEL' | 'POLICY_FALLBACK' | 'POLICY_SEVERITY_FLOOR' } {
+): { finalDecision: TriageDecision, decisionSource: 'POLICY' | 'MODEL' | 'POLICY_FALLBACK' | 'POLICY_SEVERITY_FLOOR' | 'OVERRIDE' } {
     
     const policyDecision = getPolicyDecision(finding);
 

@@ -133,6 +133,16 @@ async function main() {
 
     // Export logic
     const classifications = await prisma.findingClassification.findMany({
+        where: {
+            decisionSource: { not: 'OVERRIDE' },
+            finding: {
+                reviewRun: {
+                    repository: {
+                        userId: { not: 'demo-user-1' }
+                    }
+                }
+            }
+        },
         include: {
             finding: {
                 include: {
@@ -156,14 +166,18 @@ async function main() {
 
         let label = "UNKNOWN";
 
-        const hasRejectFeedback = f.feedback.some(fb => fb.kind === 'FIX_REJECTED' || fb.kind === 'FALSE_POSITIVE');
-        const hasAcceptFeedback = f.feedback.some(fb => fb.kind === 'FIX_ACCEPTED' || fb.kind === 'TRUE_POSITIVE');
+        const isFalsePositive = f.feedback.some(fb => fb.kind === 'FALSE_POSITIVE');
+        const isTruePositive = f.feedback.some(fb => fb.kind === 'TRUE_POSITIVE');
+        const isFixRejected = f.feedback.some(fb => fb.kind === 'FIX_REJECTED');
+        const isFixAccepted = f.feedback.some(fb => fb.kind === 'FIX_ACCEPTED');
         
-        if (hasRejectFeedback) {
+        if (isFalsePositive) {
             label = "FALSE_POSITIVE";
-        } else if (hasAcceptFeedback) {
+        } else if (isTruePositive) {
             label = "TRUE_POSITIVE";
-        } else if (f.fixes.some(fix => fix.outcome === 'FIXED' || fix.status === 'IMPLEMENTED')) {
+        } else if (isFixRejected) {
+            label = "FIX_REJECTED";
+        } else if (isFixAccepted || f.fixes.some(fix => fix.outcome === 'FIXED' || fix.status === 'IMPLEMENTED')) {
             label = "FIXED";
         } else if (f.fixes.some(fix => fix.outcome === 'NOT_FIXED')) {
             label = "NOT_FIXED";
@@ -171,8 +185,15 @@ async function main() {
             label = c.finalDecision;
         }
 
+        // Remove raw code from exported datasets
+        const cleanedFeatures = c.featureSnapshot ? { ... (c.featureSnapshot as any) } : null;
+        if (cleanedFeatures) {
+            delete cleanedFeatures.pr_change_code;
+            delete cleanedFeatures.code_snippet;
+        }
+
         records.push({
-            featureSnapshot: c.featureSnapshot,
+            featureSnapshot: cleanedFeatures,
             score: c.score,
             modelName: c.modelName,
             modelVersion: c.modelVersion,

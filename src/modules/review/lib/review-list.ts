@@ -103,8 +103,9 @@ export function buildReviewList(runs: ReviewListRunInput[], now: number = Date.n
         const toDecide = current.status === "AWAITING_APPROVAL"
             ? currentShown.flatMap(f => f.fixes).filter(x => x.status === "READY" || x.status === "IMPLEMENT_FAILED").length
             : 0;
-        // An issue whose fix was applied on this very review stays listed until the re-scan confirms it.
-        const open = hasResult ? currentShown.length : null;
+        // Only issues that have not yet had a fix applied are still open
+        const unresolvedShown = currentShown.filter(f => !f.fixes.some(x => x.status === "IMPLEMENTED"));
+        const open = hasResult ? unresolvedShown.length : null;
         const awaitingRecheck = hasResult && currentShown.length > 0 && currentShown.every(f => f.fixes.some(x => x.status === "IMPLEMENTED"));
 
         let status: Pick<ReviewListItem, "label" | "tone" | "group">;

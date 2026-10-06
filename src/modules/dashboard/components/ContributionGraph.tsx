@@ -10,12 +10,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 
 const calendarTheme = {
-    light: ["hsl(0, 0%, 92%)", "hsl(142, 71%, 45%)"],
-    dark: ["#161b22", "hsl(142, 71%, 45%)"],
+    light: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
+    dark: ["#1e2228", "#0e4429", "#006d32", "#26a641", "#39d353"],
 };
 
 const ContributionGraph = () => {
-    const { theme } = useTheme();
+    const { resolvedTheme } = useTheme();
+    const currentTheme = resolvedTheme === "dark" ? "dark" : "light";
+
     const { data, isLoading } = useQuery({
         queryKey: ['contribution-graph'],
         queryFn: async () => await getContributionStats(),
@@ -24,7 +26,7 @@ const ContributionGraph = () => {
 
     if (isLoading) {
         return (
-            <div className="flex w-full items-center justify-center p-8">
+            <div className="flex w-full items-center justify-center p-8 min-h-[160px]">
                 <Spinner className="size-6 text-muted-foreground" />
             </div>
         )
@@ -42,7 +44,7 @@ const ContributionGraph = () => {
     }
 
     return (
-        <div className="w-full flex flex-col items-center gap-4 p-4">
+        <div className="w-full flex flex-col items-center gap-3 py-2">
             <div className="text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">
                     {data.totalContributions}
@@ -50,14 +52,14 @@ const ContributionGraph = () => {
                 contributions in the last year
             </div>
 
-            <div className="w-full overflow-x-auto">
-                <div className="flex justify-center min-w-max px-4">
+            <div className="w-full overflow-x-auto pb-2 flex justify-center">
+                <div className="min-w-fit px-2">
                     <ActivityCalendar
                         data={data.contributions}
-                        colorScheme={theme === "dark" ? "dark" : "light"}
-                        blockSize={11}
-                        blockMargin={4}
-                        fontSize={14}
+                        colorScheme={currentTheme}
+                        blockSize={12}
+                        blockMargin={3.5}
+                        fontSize={12}
                         showWeekdayLabels
                         showMonthLabels
                         theme={calendarTheme}

@@ -463,6 +463,7 @@ export const processFinding = inngest.createFunction(
                         validationRunId: baselineValRun.id,
                         check: check as any,
                         status: toCheckStatus(bRes.status) as any,
+                        exitCode: bRes.exitCode,
                         durationMs: bRes.duration,
                         logExcerpt: bRes.log,
                         summary: bRes.error
@@ -471,6 +472,7 @@ export const processFinding = inngest.createFunction(
                         validationRunId: execValRun.id,
                         check: check as any,
                         status: toCheckStatus(fRes.status) as any,
+                        exitCode: fRes.exitCode,
                         durationMs: fRes.duration,
                         logExcerpt: fRes.log,
                         summary: fRes.error

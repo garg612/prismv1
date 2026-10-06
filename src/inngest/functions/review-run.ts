@@ -54,6 +54,39 @@ async function recordScanOutcome(scanRunId: string, scanner: ScannerAdapter, eva
     }
 }
 
+function buildPrismComment(run: any, logicalReview: string | null) {
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/reviews/${run.id}`;
+
+    let summary = ``;
+    if (logicalReview) {
+        summary += `### Logical Review\n${logicalReview}\n\n`;
+    }
+
+    if (run.surfacedCount === 0) {
+        if (run.suppressedCount > 0) {
+            summary += `✅ **All Clear!** PRism automatically triaged ${run.suppressedCount} noise finding(s) leaving 0 actionable issues. Great job!\n\n[View Report in PRism Dashboard](${dashboardUrl})`;
+        } else {
+            summary += `✅ **All Clear!** PRism found 0 actionable issues. Great job!\n\n[View Report in PRism Dashboard](${dashboardUrl})`;
+        }
+        return summary;
+    }
+
+    summary += `### Code Quality & Security\n`;
+    if (run.surfacedCount > 0) {
+        summary += `- 🔴 **${run.surfacedCount}** Actionable Issues Found\n`;
+    }
+    if (run.suppressedCount > 0) {
+        summary += `- 👻 **${run.suppressedCount}** Issues Automatically Triaged as Noise\n`;
+    }
+    if (run.fixesReady > 0) {
+        summary += `- 🛠️ **${run.fixesReady}** Automated Fixes Ready to Apply\n`;
+    }
+    
+    summary += `\n**[Review and 1-Click Apply Fixes in PRism Dashboard](${dashboardUrl})**`;
+
+    return summary;
+}
+
 async function resolveLatestRunState(pullRequestId: string, latestHeadSha: string) {
     const newerRun = await prisma.reviewRun.findFirst({
         where: { pullRequestId, headSha: latestHeadSha },
@@ -66,7 +99,7 @@ async function resolveLatestRunState(pullRequestId: string, latestHeadSha: strin
         const newerReview = await prisma.review.findFirst({
             where: { reviewRunId: newerRun.id }
         });
-        if (newerReview) return { state: "ready", reviewText: newerReview.review };
+        if (newerReview) return { state: "ready", reviewText: buildPrismComment(newerRun, newerReview.review) };
         return { state: "processing" };
     }
 
@@ -491,6 +524,16 @@ export const reviewRunOrchestrator = inngest.createFunction({
 
             const summary = { mode, total: dbFindings.length, modelScored: 0, featuresUnavailable: 0, mlUnavailable: 0 };
 
+            const feedbackRules = await prisma.feedbackRule.findMany({
+                where: {
+                    status: "ACTIVE",
+                    OR: [
+                        { scope: "GLOBAL" },
+                        { scope: "REPOSITORY", repositoryId: data.repositoryId }
+                    ]
+                }
+            });
+
             await mapWithLimit(dbFindings, IO_CONCURRENCY, async (f) => {
                 const answer = scoreByFinding.get(f.id);
                 const scored = answer && answer.ok ? answer : null;
@@ -512,7 +555,35 @@ export const reviewRunOrchestrator = inngest.createFunction({
                 // Each model is measured against its own bar.
                 const showFrom = scored ? scored.showFrom : TRIAGE_TAU_SURFACE;
                 const hideBelow = scored ? scored.hideBelow : TRIAGE_TAU_SUPPRESS;
-                const { finalDecision, decisionSource } = getFinalDecision(f as any as Finding, mode, scored?.score, { showFrom, hideBelow });
+                let { finalDecision, decisionSource } = getFinalDecision(f as any as Finding, mode, scored?.score, { showFrom, hideBelow });
+
+                const matchedRule = feedbackRules.find(rule => 
+                    rule.ruleId === f.ruleId &&
+                    (!rule.fingerprint || rule.fingerprint === f.fingerprint)
+                );
+
+                if (matchedRule && (process.env.FEEDBACK_RULES === 'shadow' || process.env.FEEDBACK_RULES === 'local' || process.env.FEEDBACK_RULES === 'global')) {
+                    const isShadowMode = process.env.FEEDBACK_RULES === 'shadow';
+                    
+                    await prisma.feedbackRuleHit.create({
+                        data: {
+                            feedbackRuleId: matchedRule.id,
+                            findingId: f.id,
+                            reviewRunId: data.reviewRunId,
+                            shadow: isShadowMode,
+                        }
+                    });
+
+                    if (!isShadowMode) {
+                        const isHighOrCritical = f.severity === 'HIGH' || f.severity === 'CRITICAL';
+                        
+                        // Safety Floor: Do not allow global SUPPRESS rules to auto-hide HIGH or CRITICAL severities
+                        if (!isHighOrCritical || matchedRule.action === 'SURFACE' || matchedRule.scope !== 'GLOBAL') {
+                            finalDecision = matchedRule.action;
+                            decisionSource = 'OVERRIDE';
+                        }
+                    }
+                }
 
                 if (scored) {
                     summary.modelScored++;
@@ -616,7 +687,9 @@ export const reviewRunOrchestrator = inngest.createFunction({
 
         const reviewText = await step.run("fetch-report", async () => {
             const review = await prisma.review.findUnique({ where: { reviewRunId: data.reviewRunId } });
-            return review?.review || "Automated code review completed.";
+            const run = await prisma.reviewRun.findUnique({ where: { id: data.reviewRunId } });
+            if (!run) return review?.review || "Automated code review completed.";
+            return buildPrismComment(run, review?.review || null);
         });
 
         await step.run("publish-comment", async () => {

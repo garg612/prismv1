@@ -102,7 +102,7 @@ async function Insights({ searchParams }: { searchParams: SearchParams }) {
                             rate={metrics.falseAlarms}
                             good="low"
                             countLabel="judged issues were marked as a false alarm"
-                            footnote={`${metrics.falseAlarms.count} marked “No, false alarm”, ${metrics.falseAlarms.real} confirmed real, ${metrics.falseAlarms.unjudged} not answered yet.`}
+                            footnote={`${metrics.falseAlarms.count} marked “No, false alarm”, ${metrics.falseAlarms.real} confirmed real, ${metrics.falseAlarms.noise ? `${metrics.falseAlarms.noise} marked as noise, ` : ""}${metrics.falseAlarms.unjudged} not answered yet.`}
                         />
                         <RateTile
                             title="Fix acceptance rate"

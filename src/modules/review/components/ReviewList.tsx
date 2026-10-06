@@ -38,7 +38,15 @@ function ReviewRow({ item }: { item: ReviewListItem }) {
             <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-5">
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className={`rounded-full border px-2.5 py-0.5 font-medium ${tonePill[item.tone]}`}>{item.label}</span>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-medium ${tonePill[item.tone]}`}>
+                            {item.group === "progress" && (
+                                <span className="relative flex size-2">
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+                                    <span className="relative inline-flex size-2 rounded-full bg-primary"></span>
+                                </span>
+                            )}
+                            {item.label}
+                        </span>
                         <span className="text-muted-foreground">{item.repository}</span>
                         <span className="text-muted-foreground" aria-hidden>·</span>
                         <time className="text-muted-foreground" dateTime={item.updatedAt} suppressHydrationWarning>{ago(item.updatedAt)}</time>
@@ -116,11 +124,11 @@ export function ReviewList({ items }: { items: ReviewListItem[] }) {
                             aria-pressed={filter === f.key}
                             onClick={() => setFilter(f.key)}
                             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
-                                filter === f.key ? "border-primary bg-primary/10 text-primary-text" : "text-muted-foreground hover:text-foreground"
+                                filter === f.key ? "border-primary bg-primary/10 text-primary-text font-semibold shadow-xs" : "text-muted-foreground hover:text-foreground"
                             }`}
                         >
                             {f.label}
-                            <span className="tabular-nums opacity-70">{counts[f.key]}</span>
+                            <span className="rounded-full bg-muted/80 px-1.5 py-0.2 text-[10px] tabular-nums text-foreground/80">{counts[f.key]}</span>
                         </button>
                     ))}
                 </div>
@@ -130,10 +138,20 @@ export function ReviewList({ items }: { items: ReviewListItem[] }) {
                         type="search"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Search title, repository, #number"
+                        placeholder="Search title, repo, #PR..."
                         aria-label="Search reviews"
-                        className="pl-8"
+                        className="pl-8 pr-8"
                     />
+                    {query && (
+                        <button
+                            type="button"
+                            onClick={() => setQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                            aria-label="Clear search"
+                        >
+                            ✕
+                        </button>
+                    )}
                 </div>
             </div>
 

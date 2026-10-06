@@ -42,6 +42,8 @@ describe('Stage 9: Dataset Export & De-identification', () => {
             expect(record.message).toBeUndefined();
             expect(record.rawCode).toBeUndefined();
             expect(record.githubUrl).toBeUndefined();
+            expect(record.featureSnapshot?.pr_change_code).toBeUndefined();
+            expect(record.featureSnapshot?.code_snippet).toBeUndefined();
             expect(record.userId).toBeUndefined();
             expect(record.secrets).toBeUndefined();
             expect(record.repository).toBeUndefined();

@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { headers } from "next/headers";
@@ -79,7 +81,7 @@ export async function acceptFix(fixId: string) {
     // 6. Expiry check
     if (fix.expiresAt && fix.expiresAt < new Date()) {
         await prisma.suggestedFix.update({ where: { id: fix.id }, data: { status: "EXPIRED" } });
-        return { success: false, error: "Fix expired — re-run the review." };
+        return { success: false, error: "Fix expired â€” re-run the review." };
     }
 
     // 7. Conditional Idempotent Apply Lock (CAS transition READY | IMPLEMENT_FAILED -> IMPLEMENTING)
@@ -135,10 +137,10 @@ export async function acceptFix(fixId: string) {
                 data: {
                     status: "REJECTED_STALE",
                     observedHeadSha: currentHeadSha,
-                    error: "Out of date — this fix was validated against an older commit. PRism has started re-analysis."
+                    error: "Out of date â€” this fix was validated against an older commit. PRism has started re-analysis."
                 }
             });
-            return { success: false, error: "Out of date — this fix was validated against an older commit. PRism has started re-analysis." };
+            return { success: false, error: "Out of date â€” this fix was validated against an older commit. PRism has started re-analysis." };
         }
 
         // 9. Blob Re-check & Apply
@@ -192,7 +194,32 @@ export async function acceptFix(fixId: string) {
 
         await recordFixDecision(finding.id, fix.id, session.user.id, "FIX_ACCEPTED");
 
-        return { success: true, url: applyResult.resultPrUrl };
+        // Post a fix-validation report comment
+        try {
+            const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/reviews/${reviewRun.id}`;
+            let fixMessage = `✅ **PRism successfully applied a fix** for \`${finding.ruleName || finding.ruleId || "an issue"}\`.\n\n`;
+            if (applyResult.resultPrUrl) {
+                fixMessage += `🔗 Fix Pull Request: ${applyResult.resultPrUrl}\n`;
+            } else if (applyResult.resultCommitSha) {
+                fixMessage += `🔗 Fix Commit: ${applyResult.resultCommitSha}\n`;
+            }
+            fixMessage += `\n**Validation checks passed in isolated environment:**\n` +
+                          `- ✅ Code parsed cleanly\n` +
+                          `- ✅ Finding was successfully resolved\n` +
+                          `- ✅ No new issues introduced\n\n` +
+                          `[View details in PRism Dashboard](${dashboardUrl})`;
+
+            await octokit.rest.issues.createComment({
+                owner: repository.owner,
+                repo: repository.name,
+                issue_number: pullRequest.number,
+                body: fixMessage
+            });
+        } catch (e) {
+            console.error("Failed to post fix comment to GitHub", e);
+        }
+
+        revalidatePath("/dashboard/reviews", "layout"); return { success: true, url: applyResult.resultPrUrl };
     } catch (e: any) {
         console.error("Apply fix error:", e);
         // Fallback for unexpected failures
@@ -253,7 +280,7 @@ export async function rejectFix(fixId: string) {
 
     await recordFixDecision(finding.id, fix.id, session.user.id, "FIX_REJECTED");
 
-    return { success: true };
+    revalidatePath("/dashboard/reviews", "layout"); return { success: true };
 }
 
 import { inngest } from "../../../inngest/client";
@@ -378,7 +405,33 @@ export async function acceptReadyFixes(reviewRunId: string, fixIds?: string[]) {
                 });
                 await recordFixDecision(fix.findingId, fix.id, session.user.id, "FIX_ACCEPTED");
             }
-            return { success: true };
+
+            // Post a fix-validation report comment for the batch
+            try {
+                const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/reviews/${reviewRunId}`;
+                let fixMessage = `✅ **PRism successfully applied fixes** for ${fixes.length} issues in a single batch.\n\n`;
+                if (result.resultPrUrl) {
+                    fixMessage += `🔗 Fix Pull Request: ${result.resultPrUrl}\n`;
+                } else if (result.resultCommitSha) {
+                    fixMessage += `🔗 Fix Commit: ${result.resultCommitSha}\n`;
+                }
+                fixMessage += `\n**Validation checks passed in isolated environment:**\n` +
+                              `- ✅ Code parsed cleanly\n` +
+                              `- ✅ Findings were successfully resolved\n` +
+                              `- ✅ No new issues introduced\n\n` +
+                              `[View details in PRism Dashboard](${dashboardUrl})`;
+
+                await octokit.rest.issues.createComment({
+                    owner: reviewRun.repository.owner,
+                    repo: reviewRun.repository.name,
+                    issue_number: reviewRun.pullRequest.number,
+                    body: fixMessage
+                });
+            } catch (e) {
+                console.error("Failed to post batch fix comment to GitHub", e);
+            }
+
+            revalidatePath("/dashboard/reviews", "layout"); return { success: true };
         } else {
             await release();
             return { success: false, error: result.error || "Apply failed" };

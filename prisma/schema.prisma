@@ -319,13 +319,14 @@ model FindingClassification {
 }
 
 model FindingFeedback {
-  id             String       @id @default(uuid())
+  id             String            @id @default(uuid())
   findingId      String
   suggestedFixId String?
   userId         String
   kind           FeedbackKind
-  note           String?      @db.Text
-  createdAt      DateTime     @default(now())
+  reason         FalseAlarmReason?
+  note           String?           @db.Text
+  createdAt      DateTime          @default(now())
 
   finding      Finding       @relation(fields: [findingId], references: [id], onDelete: Cascade)
   suggestedFix SuggestedFix? @relation(fields: [suggestedFixId], references: [id], onDelete: SetNull)
@@ -364,6 +365,8 @@ model SuggestedFix {
   applyAttempts   ApplyAttempt[]
   findingFeedback FindingFeedback[]
 
+  @@index([findingId])
+  @@index([reviewRunId])
   @@map("suggestedFix")
 }
 
@@ -403,6 +406,8 @@ model ValidationRun {
   validationResults ValidationResult[]
   findingDeltas     ValidationFinding[]
 
+  @@index([reviewRunId])
+  @@index([suggestedFixId])
   @@map("validationRun")
 }
 
@@ -418,6 +423,7 @@ model ValidationResult {
 
   validationRun ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
 
+  @@index([validationRunId])
   @@unique([validationRunId, check])
   @@map("validationResult")
 }
@@ -434,6 +440,7 @@ model ValidationFinding {
 
   validationRun ValidationRun @relation(fields: [validationRunId], references: [id], onDelete: Cascade)
 
+  @@index([validationRunId])
   @@map("validationFinding")
 }
 
@@ -455,6 +462,7 @@ model ApplyAttempt {
   suggestedFix SuggestedFix @relation(fields: [suggestedFixId], references: [id], onDelete: Cascade)
   // user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([suggestedFixId])
   @@map("applyAttempt")
 }
 
@@ -625,6 +633,7 @@ enum FeedbackKind {
   FIX_REJECTED
   FALSE_POSITIVE
   TRUE_POSITIVE
+  MARK_AS_NOISE
   DISMISSED
   UNSUPPRESS_REQUEST
 }
@@ -640,4 +649,79 @@ enum ApplyStatus {
   SUCCEEDED
   FAILED
   REJECTED_STALE
+}
+
+enum FalseAlarmReason {
+  INTENTIONAL_CODE
+  TEST_CODE
+  GENERATED_CODE
+  VENDOR_CODE
+  WRONG_CONTEXT
+  DUPLICATE
+  TOOL_ERROR
+  OTHER
+}
+
+model GlobalMetricSnapshot {
+  id           String   @id @default(uuid())
+  metric       String
+  value        Float
+  numerator    Int
+  denominator  Int
+  accountCount Int
+  periodStart  DateTime
+  periodEnd    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([metric, createdAt])
+  @@map("globalMetricSnapshot")
+}
+
+enum FeedbackScope {
+  FINDING
+  REPOSITORY
+  ORGANIZATION
+  GLOBAL
+}
+
+enum FeedbackRuleAction {
+  SURFACE
+  SUPPRESS
+}
+
+enum FeedbackStatus {
+  ACTIVE
+  PENDING
+  REVOKED
+}
+
+model FeedbackRule {
+  id            String             @id @default(uuid())
+  scope         FeedbackScope
+  ruleId        String
+  fingerprint   String?
+  repositoryId  String?
+  action        FeedbackRuleAction
+  evidenceCount Int                @default(1)
+  accountCount  Int                @default(1)
+  status        FeedbackStatus     @default(PENDING)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  hits          FeedbackRuleHit[]
+  
+  @@unique([scope, ruleId, repositoryId, fingerprint])
+  @@map("feedbackRule")
+}
+
+model FeedbackRuleHit {
+  id             String       @id @default(uuid())
+  feedbackRuleId String
+  findingId      String
+  reviewRunId    String
+  shadow         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+
+  rule    FeedbackRule @relation(fields: [feedbackRuleId], references: [id], onDelete: Cascade)
+  @@map("feedbackRuleHit")
 }

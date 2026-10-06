@@ -34,6 +34,11 @@ vi.mock('../../src/lib/db', () => {
                 hit.forEach(x => Object.assign(x, data));
                 return { count: hit.length };
             }),
+            update: vi.fn(async ({ where, data }: any) => {
+                const hit = db.findings.find(x => x.id === where.id);
+                if (hit) Object.assign(hit, data);
+                return hit;
+            }),
         },
         findingClassification: { create: vi.fn(async ({ data }: any) => { db.classifications.push(data); return data; }) },
         findingFeedback: {
@@ -47,8 +52,14 @@ vi.mock('../../src/lib/db', () => {
             }),
             deleteMany: vi.fn(async ({ where }: any) => {
                 const kinds: string[] = where.kind?.in ?? [where.kind];
+                const notKind = where.kind?.not;
                 const before = db.feedback.length;
-                db.feedback = db.feedback.filter(x => !(x.findingId === where.findingId && x.userId === where.userId && kinds.includes(x.kind)));
+                db.feedback = db.feedback.filter(x => {
+                    const matchIds = x.findingId === where.findingId && x.userId === where.userId;
+                    const matchIn = kinds.includes(x.kind);
+                    const matchNot = notKind ? x.kind !== notKind : true;
+                    return !(matchIds && matchIn && matchNot);
+                });
                 return { count: before - db.feedback.length };
             }),
         },
@@ -88,8 +99,15 @@ beforeEach(() => {
 
 describe('recordFeedback', () => {
     it('stores one answer', async () => {
-        expect(await recordFeedback(OWNER, FINDING, 'FALSE_POSITIVE')).toEqual({ ok: true, verdict: 'FALSE_ALARM', unsuppressed: false });
+        expect(await recordFeedback(OWNER, FINDING, 'FALSE_POSITIVE')).toEqual({ ok: true, verdict: 'FALSE_ALARM', unsuppressed: true });
         expect(verdictRows().map(f => f.kind)).toEqual(['FALSE_POSITIVE']);
+    });
+
+    it('stores reason for FALSE_POSITIVE', async () => {
+        expect(await recordFeedback(OWNER, FINDING, 'FALSE_POSITIVE', 'TEST_CODE' as any)).toEqual({ ok: true, verdict: 'FALSE_ALARM', unsuppressed: true });
+        const rows = verdictRows();
+        expect(rows.map(f => f.kind)).toEqual(['FALSE_POSITIVE']);
+        expect(rows[0]).toMatchObject({ reason: 'TEST_CODE' });
     });
 
     it('keeps exactly one answer however often it is repeated', async () => {
@@ -193,7 +211,13 @@ describe('POST /api/findings/:id/feedback', () => {
     it('saves an answer and returns only the verdict', async () => {
         const res = await call(FINDING, { action: 'TRUE_POSITIVE' });
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ verdict: 'REAL', unsuppressed: false });
+        expect(await res.json()).toEqual({ verdict: 'REAL', unsuppressed: true });
+    });
+
+    it('accepts reason for FALSE_POSITIVE', async () => {
+        const res = await call(FINDING, { action: 'FALSE_POSITIVE', reason: 'TEST_CODE' });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ verdict: 'FALSE_ALARM', unsuppressed: true });
     });
 
     it('answers 401 without a session, as JSON and without touching the database', async () => {
