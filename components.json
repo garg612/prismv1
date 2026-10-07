@@ -23,6 +23,7 @@
   "menuAccent": "subtle",
   "registries": {
     "@svgl": "https://svgl.app/r/{name}.json",
-    "@blobatar": "https://blobatar.dev/r/{name}.json"
+    "@blobatar": "https://blobatar.dev/r/{name}.json",
+    "@react-bits": "https://reactbits.dev/r/{name}.json"
   }
 }

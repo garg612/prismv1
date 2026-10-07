@@ -1,0 +1,1211 @@
+diff --git a/src/app/(auth)/login/page.tsx b/src/app/(auth)/login/page.tsx
+index 03af8b5..e390e32 100644
+--- a/src/app/(auth)/login/page.tsx
++++ b/src/app/(auth)/login/page.tsx
+@@ -1,25 +1,32 @@
++
+ export const instant = false;
+ 
+ import { Metadata } from "next";
+ import { requireUnAuth } from "@/modules/auth/utils/authUtils";
++import { getAuthErrorMessage } from "@/modules/auth/utils/authErrors";
+ import LoginPage from "@/modules/auth/components/LoginPage";
+ 
+ export const metadata: Metadata = {
+     title: "PRism — Code review that fixes what it finds",
+-    description: "PRism analyzes pull requests, classifies findings as introduced or pre-existing, validates fixes in isolation, and commits them atomically. Sign in with GitHub to get started.",
++    description: "PRism scans pull requests with Semgrep and ESLint, sets the noise aside, and proposes fixes tested in an isolated sandbox. You decide what gets applied. Sign in with GitHub to get started.",
+     openGraph: {
+         title: "PRism — Code review that fixes what it finds",
+-        description: "Automated PR review with validated, atomic fixes.",
++        description: "Pull request review with fixes that are checked before you see them.",
+         type: "website",
+     },
+ };
+ 
+-export default async function LoginRoute() {
++export default async function LoginRoute({
++    searchParams,
++}: {
++    searchParams: Promise<{ error?: string }>;
++}) {
+     await requireUnAuth();
+-    
++    const { error } = await searchParams;
++
+     return (
+         <main id="main-content" className="bg-background min-h-screen">
+-            <LoginPage />
++            <LoginPage authError={getAuthErrorMessage(error)} />
+         </main>
+     );
+ }
+diff --git a/src/modules/auth/components/BrandLogo.tsx b/src/modules/auth/components/BrandLogo.tsx
+new file mode 100644
+index 0000000..a5282d9
+--- /dev/null
++++ b/src/modules/auth/components/BrandLogo.tsx
+@@ -0,0 +1,13 @@
++import Image from "next/image";
++import horizontalBlack from "../../../../logos/kit/final-horizontal-black.svg";
++import horizontalWhite from "../../../../logos/kit/final-horizontal-white.svg";
++
++/** PRism horizontal logo from the brand kit in /logos/kit: black on light, white on dark. */
++export default function BrandLogo({ className = "h-7 w-auto", priority = false }: { className?: string; priority?: boolean }) {
++    return (
++        <>
++            <Image src={horizontalBlack} alt="PRism" priority={priority} className={`${className} dark:hidden`} />
++            <Image src={horizontalWhite} alt="PRism" priority={priority} className={`${className} hidden dark:block`} />
++        </>
++    );
++}
+diff --git a/src/modules/auth/components/FeaturesSection.tsx b/src/modules/auth/components/FeaturesSection.tsx
+new file mode 100644
+index 0000000..a3df0e6
+--- /dev/null
++++ b/src/modules/auth/components/FeaturesSection.tsx
+@@ -0,0 +1,42 @@
++import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
++
++const features = [
++    {
++        title: "Finds problems in your pull request",
++        body: "Semgrep and ESLint scan the code in the PR. An AI reviewer also reads the diff for logic mistakes no scanner can see, and shows them as suggestions, not facts.",
++    },
++    {
++        title: "Sets the noise aside",
++        body: "Every finding gets a risk score. Likely noise moves to a collapsed list you can reopen, and problems that were already in the base branch are labelled as such. High-severity security issues are always shown.",
++    },
++    {
++        title: "Fixes it, then checks the fix",
++        body: "PRism proposes a small change, applies it in an isolated sandbox and scans again. If you turn it on, it also runs your repository's install, lint, build and tests before and after the fix.",
++    },
++    {
++        title: "You decide what lands",
++        body: "Nothing is applied until you choose to. Fixes go to a separate branch with a pull request by default, or as a direct commit or a suggestion comment.",
++    },
++];
++
++export default function FeaturesSection() {
++    return (
++        <section className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
++            <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight mb-12">
++                What PRism does
++            </h2>
++            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++                {features.map((feature) => (
++                    <Card key={feature.title}>
++                        <CardHeader>
++                            <CardTitle className="text-lg">{feature.title}</CardTitle>
++                        </CardHeader>
++                        <CardContent>
++                            <p className="text-muted-foreground leading-relaxed">{feature.body}</p>
++                        </CardContent>
++                    </Card>
++                ))}
++            </div>
++        </section>
++    );
++}
+diff --git a/src/modules/auth/components/Footer.tsx b/src/modules/auth/components/Footer.tsx
+index f7ce9fa..b09b4ff 100644
+--- a/src/modules/auth/components/Footer.tsx
++++ b/src/modules/auth/components/Footer.tsx
+@@ -1,28 +1,18 @@
+-import React from "react";
+-import { GithubLight } from "@/components/ui/svgs/githubLight";
+-import { GithubDark } from "@/components/ui/svgs/githubDark";
+-import { Separator } from "@/components/ui/separator";
+-import { LogoHorizontal } from "@/components/Logo";
++import BrandLogo from "./BrandLogo";
+ 
+ export default function Footer() {
+     return (
+-        <footer className="w-full border-t bg-background/50 py-8">
+-            <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+-                <div className="flex items-center gap-4">
+-                    <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="opacity-80 hover:opacity-100 transition-opacity" aria-label="GitHub Repository">
+-                        <div className="h-5 w-5">
+-                            <GithubLight className="h-full w-full dark:hidden" />
+-                            <GithubDark className="h-full w-full hidden dark:block" />
+-                        </div>
+-                    </a>
+-                    <span className="hidden md:flex items-center gap-1">© {new Date().getFullYear()} <LogoHorizontal className="h-3.5 w-auto" /></span>
++        <footer className="w-full border-t py-8">
++            <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
++                <div className="flex items-center gap-3">
++                    <BrandLogo className="h-6 w-auto" />
++                    <span>© {new Date().getFullYear()}</span>
+                 </div>
+-                
+-                <div className="flex items-center gap-2">
+-                    <span>Built with Next.js, shadcn/ui.</span>
+-                </div>
+-                
+-                <span className="md:hidden flex items-center gap-1 justify-center">© {new Date().getFullYear()} <LogoHorizontal className="h-3.5 w-auto" /></span>
++                <nav aria-label="Footer" className="flex items-center gap-6">
++                    <a href="#how-it-works" className="hover:text-foreground">How it works</a>
++                    <a href="#control" className="hover:text-foreground">Control &amp; access</a>
++                    <a href="#sign-in" className="hover:text-foreground">Sign in</a>
++                </nav>
+             </div>
+         </footer>
+     );
+diff --git a/src/modules/auth/components/GithubSignInButton.tsx b/src/modules/auth/components/GithubSignInButton.tsx
+new file mode 100644
+index 0000000..bdaf911
+--- /dev/null
++++ b/src/modules/auth/components/GithubSignInButton.tsx
+@@ -0,0 +1,43 @@
++"use client";
++
++import { useState, type ComponentProps } from "react";
++import { toast } from "sonner";
++import { authClient } from "@/lib/authClient";
++import { Button } from "@/components/ui/button";
++import { GithubLight } from "@/components/ui/svgs/githubLight";
++import { GithubDark } from "@/components/ui/svgs/githubDark";
++
++type Props = Omit<ComponentProps<typeof Button>, "onClick" | "onError" | "children"> & {
++    label?: string;
++    /** Called with a message when sign-in could not start. Without it, a toast is shown. */
++    onError?: (message: string) => void;
++};
++
++const START_ERROR = "Couldn't start GitHub sign-in. Please try again.";
++
++export default function GithubSignInButton({ label = "Sign in with GitHub", onError, disabled, ...props }: Props) {
++    const [isLoading, setIsLoading] = useState(false);
++
++    const handleClick = async () => {
++        setIsLoading(true);
++        try {
++            // errorCallbackURL brings the user back to /login?error=... if GitHub sign-in fails or is cancelled.
++            const res = await authClient.signIn.social({ provider: "github", errorCallbackURL: "/login" });
++            if (res.error) throw new Error(res.error.message);
++        } catch {
++            setIsLoading(false);
++            if (onError) onError(START_ERROR);
++            else toast.error(START_ERROR);
++        }
++    };
++
++    return (
++        <Button {...props} onClick={handleClick} disabled={disabled || isLoading} aria-busy={isLoading}>
++            <span className="flex h-4 w-4 items-center justify-center">
++                <GithubLight className="h-full w-full dark:hidden" />
++                <GithubDark className="hidden h-full w-full dark:block" />
++            </span>
++            {isLoading ? "Redirecting to GitHub…" : label}
++        </Button>
++    );
++}
+diff --git a/src/modules/auth/components/HeroSection.tsx b/src/modules/auth/components/HeroSection.tsx
+index 3339a79..0e9412a 100644
+--- a/src/modules/auth/components/HeroSection.tsx
++++ b/src/modules/auth/components/HeroSection.tsx
+@@ -1,22 +1,8 @@
+-import React from "react";
+ import { Button } from "@/components/ui/button";
+-import { PRPanel } from "./showcase/PRPanel";
++import GithubSignInButton from "./GithubSignInButton";
++import { ReviewPreview } from "./showcase/ReviewPreview";
+ 
+ export default function HeroSection() {
+-    const handleScrollToSignIn = () => {
+-        const element = document.getElementById("sign-in");
+-        if (element) {
+-            element.scrollIntoView({ behavior: "smooth" });
+-        }
+-    };
+-    
+-    const handleScrollToPipeline = () => {
+-        const element = document.getElementById("pipeline");
+-        if (element) {
+-            element.scrollIntoView({ behavior: "smooth" });
+-        }
+-    };
+-
+     return (
+         <section className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full flex flex-col items-center text-center gap-12">
+             <div className="space-y-6 max-w-3xl">
+@@ -24,20 +10,23 @@ export default function HeroSection() {
+                     Code review that fixes what it finds.
+                 </h1>
+                 <p className="text-xl text-muted-foreground leading-relaxed">
+-                    PRism analyzes pull requests, classifies findings as introduced or pre-existing, validates fixes in isolation, and commits them atomically.
++                    PRism scans every pull request with Semgrep and ESLint, sets the noise aside, and proposes fixes it has already tested in an isolated sandbox. You decide what gets applied.
+                 </p>
+                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-center pt-4">
+-                    <Button size="lg" className="w-full sm:w-auto text-base bg-foreground text-background hover:bg-foreground/90" onClick={handleScrollToSignIn}>
+-                        Get started with GitHub
+-                    </Button>
+-                    <Button variant="link" size="lg" className="w-full sm:w-auto text-base text-muted-foreground hover:text-foreground" onClick={handleScrollToPipeline}>
+-                        See how it works &rarr;
++                    <GithubSignInButton
++                        size="lg"
++                        label="Sign in with GitHub"
++                        className="w-full sm:w-auto text-base bg-foreground text-background hover:bg-foreground/90"
++                    />
++                    <Button asChild variant="link" size="lg" className="w-full sm:w-auto text-base text-muted-foreground hover:text-foreground">
++                        <a href="#how-it-works">See how it works &rarr;</a>
+                     </Button>
+                 </div>
++                <p className="text-sm text-muted-foreground">For JavaScript and TypeScript repositories on GitHub.</p>
+             </div>
+-            
+-            <div className="w-full mt-8">
+-                <PRPanel />
++
++            <div className="w-full">
++                <ReviewPreview />
+             </div>
+         </section>
+     );
+diff --git a/src/modules/auth/components/LoginPage.tsx b/src/modules/auth/components/LoginPage.tsx
+index 275487d..6603ed1 100644
+--- a/src/modules/auth/components/LoginPage.tsx
++++ b/src/modules/auth/components/LoginPage.tsx
+@@ -1,24 +1,21 @@
+-"use client";
+-
+-import React from "react";
+ import StickyHeader from "./StickyHeader";
+ import HeroSection from "./HeroSection";
+-import ProblemSection from "./ProblemSection";
++import FeaturesSection from "./FeaturesSection";
+ import PipelineSection from "./PipelineSection";
+ import TrustSection from "./TrustSection";
+ import SignInSection from "./SignInSection";
+ import Footer from "./Footer";
+ 
+-export default function LoginPage() {
++export default function LoginPage({ authError = null }: { authError?: string | null }) {
+     return (
+         <div className="flex flex-col min-h-screen">
+             <StickyHeader />
+             <div className="flex-1">
+                 <HeroSection />
+-                <ProblemSection />
++                <FeaturesSection />
+                 <PipelineSection />
+                 <TrustSection />
+-                <SignInSection />
++                <SignInSection authError={authError} />
+             </div>
+             <Footer />
+         </div>
+diff --git a/src/modules/auth/components/LoginUI.tsx b/src/modules/auth/components/LoginUI.tsx
+index aa14dd4..83cb396 100644
+--- a/src/modules/auth/components/LoginUI.tsx
++++ b/src/modules/auth/components/LoginUI.tsx
+@@ -2,49 +2,35 @@
+ 
+ import { authClient } from "@/lib/authClient"
+ import { useState } from "react"
+-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
++import { Alert, AlertDescription } from "@/components/ui/alert"
+ import { Button } from "@/components/ui/button"
+-import { GithubLight } from "@/components/ui/svgs/githubLight"
+-import { GithubDark } from "@/components/ui/svgs/githubDark"
++import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
++import GithubSignInButton from "./GithubSignInButton"
+ 
+-const LoginUI = () => {
+-    const { signIn } = authClient
+-    const [isLoading, setIsLoading] = useState(false)
+-    const [error, setError] = useState<string | null>(null)
++const DEMO_ERROR = "Failed to sign in with the demo account. Please try again."
+ 
+-    const handleGithubLogin = async () => {
+-        setError(null)
+-        setIsLoading(true)
+-        try {
+-            await signIn.social({
+-                provider: "github"
+-            })
+-        } catch (error) {
+-            console.log("Error in GitHub Login:", error)
+-            setError("Failed to sign in with GitHub. Please try again.")
+-            setIsLoading(false)
+-        } 
+-    }
++const LoginUI = ({ initialError = null }: { initialError?: string | null }) => {
++    const { signIn } = authClient
++    const [error, setError] = useState<string | null>(initialError)
++    const [isDemoLoading, setIsDemoLoading] = useState(false)
+ 
+     const handleDemoLogin = async () => {
+         setError(null)
+-        setIsLoading(true)
++        setIsDemoLoading(true)
+         try {
+             const res = await signIn.email({
+                 email: "demo@prism.local",
+                 password: "Demo@123"
+             })
+             if (res.error) {
+-                console.log("Error in Demo Login:", res.error)
+-                setError("Failed to sign in with Demo Account. Please try again.")
+-                setIsLoading(false)
++                setError(DEMO_ERROR)
++                setIsDemoLoading(false)
+             } else {
+                 window.location.href = "/dashboard"
+             }
+-        } catch (error) {
+-            console.log("Error in Demo Login:", error)
+-            setError("Failed to sign in with Demo Account. Please try again.")
+-            setIsLoading(false)
++        } catch {
++            setError(DEMO_ERROR)
++            setIsDemoLoading(false)
+         }
+     }
+ 
+@@ -56,47 +42,34 @@ const LoginUI = () => {
+                     Sign in with GitHub to connect your first repository.
+                 </CardDescription>
+             </CardHeader>
+-            <CardContent>
++            <CardContent className="space-y-4">
+                 {error && (
+-                    <p role="alert" className="mb-4 text-sm text-destructive text-center">
+-                        {error}
+-                    </p>
++                    <Alert variant="destructive">
++                        <AlertDescription>{error}</AlertDescription>
++                    </Alert>
+                 )}
+ 
+-                <Button
+-                    variant="outline"
+-                    className="w-full font-medium"
+-                    onClick={handleGithubLogin}
+-                    disabled={isLoading}
+-                >
+-                    {isLoading ? (
+-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+-                    ) : (
+-                        <div className="mr-2 flex h-5 w-5 items-center justify-center">
+-                            <GithubLight className="h-full w-full dark:hidden" />
+-                            <GithubDark className="h-full w-full hidden dark:block" />
+-                        </div>
+-                    )}
+-
+-                    Sign in with GitHub
+-                </Button>
++                <GithubSignInButton variant="outline" className="w-full font-medium" onError={setError} />
+ 
+                 {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+                     <Button
+                         variant="secondary"
+-                        className="w-full font-medium mt-4 border-border/50"
++                        className="w-full font-medium border-border/50"
+                         onClick={handleDemoLogin}
+-                        disabled={isLoading}
++                        disabled={isDemoLoading}
+                     >
+-                        Sign in with Demo Account
++                        {isDemoLoading ? "Signing in…" : "Sign in with Demo Account"}
+                     </Button>
+                 )}
+             </CardContent>
+-            <CardFooter className="text-center text-sm text-muted-foreground flex justify-center">
+-                By continuing, you authorize PRism to access your repositories.
++            <CardFooter className="justify-center text-center text-sm text-muted-foreground">
++                <p>
++                    PRism asks GitHub for the repo permission so it can read your pull requests and push fixes you approve.{" "}
++                    <a href="#control" className="underline underline-offset-4 hover:text-foreground">Details</a>
++                </p>
+             </CardFooter>
+         </Card>
+     )
+ }
+ 
+-export default LoginUI
+\ No newline at end of file
++export default LoginUI
+diff --git a/src/modules/auth/components/PipelineSection.tsx b/src/modules/auth/components/PipelineSection.tsx
+index cc0cb43..e78f458 100644
+--- a/src/modules/auth/components/PipelineSection.tsx
++++ b/src/modules/auth/components/PipelineSection.tsx
+@@ -1,171 +1,165 @@
+-"use client";
++import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
++import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
++import { Check } from "lucide-react";
++import { FixChecks } from "./showcase/FixChecks";
+ 
+-import React, { useState } from "react";
+-import { PRPanel } from "./showcase/PRPanel";
++function RiskRow({ title, score, outcome }: { title: string; score: number; outcome: string }) {
++    return (
++        <li className="space-y-1.5">
++            <p className="text-sm font-medium">{title}</p>
++            <div className="flex items-center gap-3">
++                <div className="h-1.5 flex-1 rounded-full bg-muted" role="img" aria-label={`Risk score ${score} out of 100`}>
++                    <div className="h-full rounded-full bg-foreground" style={{ width: `${score}%` }} />
++                </div>
++                <span className="w-16 text-right font-mono text-xs text-muted-foreground">{score} / 100</span>
++            </div>
++            <p className="text-xs text-muted-foreground">{outcome}</p>
++        </li>
++    );
++}
+ 
+ const steps = [
+     {
+-        id: "connect",
+-        title: "Connect & index",
+-        desc: "Sign in with GitHub and connect a repository. PRism embeds the codebase for contextual understanding.",
++        id: "scan",
++        label: "Scan",
++        title: "Scan the pull request",
++        body: "When a pull request opens or gets a new commit, PRism runs Semgrep and ESLint on the exact commit. An AI reviewer also reads the diff for logic bugs, and labels those as suggestions.",
++        visual: (
++            <Card size="sm">
++                <CardHeader>
++                    <CardTitle>Scan</CardTitle>
++                    <CardDescription>5 issues found on this commit</CardDescription>
++                </CardHeader>
++                <CardContent>
++                    <ul className="divide-y text-sm">
++                        <li className="flex justify-between py-2"><span>Semgrep</span><span className="text-muted-foreground">3 findings</span></li>
++                        <li className="flex justify-between py-2"><span>ESLint</span><span className="text-muted-foreground">2 findings</span></li>
++                        <li className="flex justify-between py-2"><span>AI logic review</span><span className="text-muted-foreground">2 suggestions</span></li>
++                    </ul>
++                </CardContent>
++            </Card>
++        ),
+     },
+     {
+-        id: "detect",
+-        title: "Detect",
+-        desc: "A pull request opens. PRism reads the changed files and runs analysis on the exact commit SHA.",
+-    },
+-    {
+-        id: "classify",
+-        title: "Classify",
+-        desc: "Each finding is labeled. INTRODUCED means this PR caused it. PRE_EXISTING means it was already there.",
++        id: "triage",
++        label: "Triage",
++        title: "Decide what is worth your time",
++        body: "Each finding gets a risk score. Likely noise is moved into a collapsed list, and you can bring any of it back with one click. High-severity security issues are always shown, whatever their score.",
++        visual: (
++            <Card size="sm">
++                <CardHeader>
++                    <CardTitle>Triage</CardTitle>
++                    <CardDescription>Example risk scores: 0 is noise, 100 is a real problem</CardDescription>
++                </CardHeader>
++                <CardContent>
++                    <ul className="space-y-4">
++                        <RiskRow title="Potential SQL injection detected." score={82} outcome="Shown" />
++                        <RiskRow title="'usr' is not defined." score={80} outcome="Shown" />
++                        <RiskRow title="Debugging console.log detected." score={33} outcome="Filtered out as noise" />
++                    </ul>
++                </CardContent>
++            </Card>
++        ),
+     },
+     {
+         id: "fix",
+-        title: "Fix",
+-        desc: "PRism prefers deterministic fixes from the analyzer. When none exist, it generates a structured edit proposal.",
++        label: "Fix",
++        title: "Propose a fix and check it",
++        body: "PRism writes a small change, applies it in an isolated sandbox and scans again. If you turned on tests for the repository, it also runs install, lint, build and tests on the code before and after the fix.",
++        visual: (
++            <Card size="sm">
++                <CardHeader>
++                    <CardTitle>Suggested fix</CardTitle>
++                    <CardDescription className="font-mono text-xs">userService.js</CardDescription>
++                </CardHeader>
++                <CardContent className="space-y-4">
++                    <pre className="overflow-x-auto rounded-md border font-mono text-xs leading-relaxed">
++                        <code className="block bg-destructive/10 px-3 py-1">{"- return db.query(\"SELECT * FROM users WHERE username = '\" + username + \"'\");"}</code>
++                        <code className="block bg-success/15 px-3 py-1">{"+ return db.query(\"SELECT * FROM users WHERE username = $1\", [username]);"}</code>
++                    </pre>
++                    <div className="space-y-2">
++                        <p className="text-xs font-medium uppercase text-muted-foreground">How this fix was checked</p>
++                        <FixChecks />
++                    </div>
++                </CardContent>
++            </Card>
++        ),
+     },
+     {
+-        id: "validate",
+-        title: "Validate",
+-        desc: "Every fix is applied in an isolated workspace, re-analyzed, and validated.",
++        id: "decision",
++        label: "Your decision",
++        title: "You choose what to apply",
++        body: "Pick the fixes you want. Selected fixes are checked together before anything is applied. You can also mark a finding as noise or a false alarm.",
++        visual: (
++            <Card size="sm">
++                <CardHeader>
++                    <CardTitle>Apply selected fixes as</CardTitle>
++                    <CardDescription>Set per repository</CardDescription>
++                </CardHeader>
++                <CardContent>
++                    <ul className="divide-y text-sm">
++                        <li className="flex justify-between py-2"><span>Fix branch + pull request</span><span className="text-muted-foreground">Default</span></li>
++                        <li className="py-2">Direct commit</li>
++                        <li className="py-2">Suggestion comment</li>
++                    </ul>
++                </CardContent>
++            </Card>
++        ),
+     },
+     {
+-        id: "apply",
+-        title: "Apply & re-review",
+-        desc: "All approved fixes land as one atomic commit, triggering a fresh review automatically.",
+-    }
++        id: "recheck",
++        label: "Re-check",
++        title: "Scan again",
++        body: "After a fix is applied, the updated pull request is scanned again, so you can see the finding is gone and nothing new appeared.",
++        visual: (
++            <Card size="sm">
++                <CardHeader>
++                    <CardTitle>Re-check</CardTitle>
++                    <CardDescription>Updated pull request scanned</CardDescription>
++                </CardHeader>
++                <CardContent>
++                    <ul className="space-y-2 text-sm">
++                        <li className="flex items-center gap-2"><Check className="size-4 shrink-0" aria-hidden />Potential SQL injection: resolved</li>
++                        <li className="flex items-center gap-2"><Check className="size-4 shrink-0" aria-hidden />No new issues introduced</li>
++                    </ul>
++                </CardContent>
++            </Card>
++        ),
++    },
+ ];
+ 
+-function ActiveStepVisual({ stepId }: { stepId: string }) {
+-    if (stepId === "connect") {
+-        return (
+-            <div className="flex-1 flex items-center justify-center p-8 bg-muted/10 h-full">
+-                <div className="flex items-center gap-4 text-muted-foreground">
+-                    <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center text-background">
+-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+-                    </div>
+-                    <div className="h-0.5 w-12 bg-border"></div>
+-                    <div className="w-16 h-16 rounded-xl bg-muted border flex items-center justify-center font-bold text-foreground">
+-                        PRism
+-                    </div>
+-                </div>
+-            </div>
+-        );
+-    }
+-    
+-    if (stepId === "detect") {
+-        return (
+-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
+-                <PRPanel disableBadges />
+-            </div>
+-        );
+-    }
+-    
+-    if (stepId === "classify") {
+-        return (
+-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
+-                <PRPanel highlightBadges />
+-            </div>
+-        );
+-    }
+-    
+-    if (stepId === "fix") {
+-        return (
+-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
+-                <PRPanel highlightFix />
+-            </div>
+-        );
+-    }
+-    
+-    if (stepId === "validate") {
+-        return (
+-            <div className="flex-1 p-6 bg-muted/10 h-full flex flex-col justify-center gap-4">
+-                <div className="border rounded-md overflow-hidden bg-background shadow-sm">
+-                    <div className="bg-muted/50 px-4 py-2 border-b text-xs font-mono text-muted-foreground flex justify-between">
+-                        <span>src/api/auth.ts</span>
+-                        <span>acme/web-app #142</span>
+-                    </div>
+-                    <div className="p-4 font-mono text-sm overflow-x-auto">
+-                        <div className="text-destructive bg-destructive/10 px-2 py-0.5">{"- export const login = async (req) => {"}</div>
+-                        <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5">{"+ export const login = rateLimit(async (req) => {"}</div>
+-                    </div>
+-                </div>
+-                <div className="bg-background border rounded-md p-4 space-y-3 shadow-sm">
+-                    <h4 className="text-sm font-medium">Validation Checklist</h4>
+-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+-                        Original finding resolved
+-                    </div>
+-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+-                        0 new findings introduced
+-                    </div>
+-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+-                        Head SHA unchanged
+-                    </div>
+-                </div>
+-            </div>
+-        );
+-    }
+-    
+-    if (stepId === "apply") {
+-        return (
+-            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-muted/10 h-full">
+-                <div className="bg-background border rounded-lg p-6 shadow-sm w-full max-w-sm space-y-4">
+-                    <div className="flex items-center gap-3">
+-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
+-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+-                        </div>
+-                        <div className="flex-1">
+-                            <p className="font-medium text-sm">Commit applied</p>
+-                            <p className="text-xs text-muted-foreground font-mono">1 commit pushed to acme/web-app</p>
+-                        </div>
+-                    </div>
+-                    <div className="text-xs font-mono bg-muted/50 p-2 rounded text-muted-foreground">
+-                        fix: address 2 static analysis findings
+-                    </div>
+-                </div>
+-            </div>
+-        );
+-    }
+-
+-    return null;
+-}
+-
+ export default function PipelineSection() {
+-    const [activeStep, setActiveStep] = useState(steps[0].id);
+-
+     return (
+-        <section id="pipeline" className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
+-            <div className="mb-12">
+-                <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight mb-4">
++        <section id="how-it-works" className="scroll-mt-20 py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
++            <div className="mb-10 space-y-3">
++                <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight">
+                     How it works
+                 </h2>
++                <p className="text-muted-foreground text-lg">
++                    Connect a repository and open a pull request. PRism takes it from there.
++                </p>
+             </div>
+-            
+-            <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-start">
+-                <div className="w-full md:w-1/3 md:sticky md:top-24 space-y-2">
++
++            <Tabs defaultValue="scan">
++                <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+                     {steps.map((step) => (
+-                        <div 
+-                            key={step.id}
+-                            className={`p-4 rounded-lg cursor-pointer transition-colors ${activeStep === step.id ? 'bg-muted' : 'hover:bg-muted/50'}`}
+-                            onClick={() => setActiveStep(step.id)}
+-                        >
+-                            <h3 className={`font-medium text-lg ${activeStep === step.id ? 'text-foreground' : 'text-muted-foreground'}`}>{step.title}</h3>
+-                            {activeStep === step.id && (
+-                                <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
+-                                    {step.desc}
+-                                </p>
+-                            )}
+-                        </div>
++                        <TabsTrigger key={step.id} value={step.id} className="flex-none px-3">
++                            {step.label}
++                        </TabsTrigger>
+                     ))}
+-                </div>
+-                
+-                <div className="w-full md:w-2/3 min-h-[450px] border rounded-xl bg-background flex flex-col overflow-hidden shadow-sm">
+-                    <ActiveStepVisual stepId={activeStep} />
+-                </div>
+-            </div>
++                </TabsList>
++                {steps.map((step) => (
++                    <TabsContent key={step.id} value={step.id} className="pt-8">
++                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
++                            <div className="space-y-3">
++                                <h3 className="text-xl font-medium text-foreground">{step.title}</h3>
++                                <p className="text-base text-muted-foreground leading-relaxed">{step.body}</p>
++                            </div>
++                            {step.visual}
++                        </div>
++                    </TabsContent>
++                ))}
++            </Tabs>
+         </section>
+     );
+ }
+diff --git a/src/modules/auth/components/ProblemSection.tsx b/src/modules/auth/components/ProblemSection.tsx
+deleted file mode 100644
+index 454784f..0000000
+--- a/src/modules/auth/components/ProblemSection.tsx
++++ /dev/null
+@@ -1,22 +0,0 @@
+-import React from "react";
+-
+-export default function ProblemSection() {
+-    return (
+-        <section className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
+-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
+-                <div className="space-y-4 p-8 rounded-xl bg-muted/30 border border-muted h-full">
+-                    <h3 className="font-heading text-2xl font-bold">Static analysis: 23 findings</h3>
+-                    <p className="text-muted-foreground leading-relaxed text-base">
+-                        Traditional CI tools dump every warning onto your PR, including years of accumulated technical debt. You spend more time filtering out noise than reviewing new code.
+-                    </p>
+-                </div>
+-                <div className="space-y-4 p-8 rounded-xl bg-foreground text-background h-full">
+-                    <h3 className="font-heading text-2xl font-bold text-background">PRism: 3 introduced / 20 pre-existing</h3>
+-                    <p className="text-background/80 leading-relaxed text-base">
+-                        By understanding the exact diff, PRism isolates the problems you actually caused. You only fix what you broke, keeping the review focused and actionable.
+-                    </p>
+-                </div>
+-            </div>
+-        </section>
+-    );
+-}
+diff --git a/src/modules/auth/components/SignInSection.tsx b/src/modules/auth/components/SignInSection.tsx
+index 6a4ecdc..15a79b8 100644
+--- a/src/modules/auth/components/SignInSection.tsx
++++ b/src/modules/auth/components/SignInSection.tsx
+@@ -1,11 +1,10 @@
+-import React from "react";
+ import LoginUI from "@/modules/auth/components/LoginUI";
+ 
+-export default function SignInSection() {
++export default function SignInSection({ authError }: { authError: string | null }) {
+     return (
+-        <section id="sign-in" className="py-24 border-t bg-muted/30 w-full flex items-center justify-center">
+-            <div className="w-full max-w-md">
+-                <LoginUI />
++        <section id="sign-in" className="scroll-mt-20 py-24 border-t bg-muted/30 w-full flex items-center justify-center">
++            <div className="w-full max-w-md px-6">
++                <LoginUI initialError={authError} />
+             </div>
+         </section>
+     );
+diff --git a/src/modules/auth/components/StickyHeader.tsx b/src/modules/auth/components/StickyHeader.tsx
+index f393fbb..693a2c0 100644
+--- a/src/modules/auth/components/StickyHeader.tsx
++++ b/src/modules/auth/components/StickyHeader.tsx
+@@ -1,36 +1,24 @@
+-"use client";
+-
+-import React from "react";
+-import { Button } from "@/components/ui/button";
++import Link from "next/link";
+ import { LoginThemeToggle } from "@/components/LoginThemeToggle";
+-import { GithubLight } from "@/components/ui/svgs/githubLight";
+-import { GithubDark } from "@/components/ui/svgs/githubDark";
+-import { LogoHorizontal } from "@/components/Logo";
+-export default function StickyHeader() {
+-    const handleScrollToSignIn = () => {
+-        const element = document.getElementById("sign-in");
+-        if (element) {
+-            element.scrollIntoView({ behavior: "smooth" });
+-        }
+-    };
++import BrandLogo from "./BrandLogo";
++import GithubSignInButton from "./GithubSignInButton";
+ 
++export default function StickyHeader() {
+     return (
+         <header className="sticky top-0 z-50 w-full border-b bg-background">
+-            <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+-                <div className="flex items-center gap-2">
+-                    <LogoHorizontal className="h-7 w-auto text-foreground" />
+-                </div>
+-                
+-                <div className="flex items-center gap-4">
++            <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
++                <Link href="/login" aria-label="PRism">
++                    <BrandLogo priority />
++                </Link>
++
++                <nav aria-label="Page sections" className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
++                    <a href="#how-it-works" className="hover:text-foreground">How it works</a>
++                    <a href="#control" className="hover:text-foreground">Control &amp; access</a>
++                </nav>
++
++                <div className="flex items-center gap-3">
+                     <LoginThemeToggle />
+-                    <Button variant="outline" size="sm" onClick={handleScrollToSignIn}>
+-                        <div className="mr-2 flex h-4 w-4 items-center justify-center">
+-                            <GithubLight className="h-full w-full dark:hidden" />
+-                            <GithubDark className="h-full w-full hidden dark:block" />
+-                        </div>
+-                        <span className="hidden sm:inline">Sign in with GitHub</span>
+-                        <span className="sm:hidden">Sign in</span>
+-                    </Button>
++                    <GithubSignInButton variant="outline" size="sm" label="Sign in with GitHub" />
+                 </div>
+             </div>
+         </header>
+diff --git a/src/modules/auth/components/TrustSection.tsx b/src/modules/auth/components/TrustSection.tsx
+index 9d846a1..55b0915 100644
+--- a/src/modules/auth/components/TrustSection.tsx
++++ b/src/modules/auth/components/TrustSection.tsx
+@@ -1,70 +1,59 @@
+-import React from "react";
++import { Card, CardContent } from "@/components/ui/card";
++
++const controls = [
++    {
++        title: "Nothing is applied until you say so.",
++        body: "PRism proposes fixes. You pick which ones to apply, and how: a fix branch with a pull request (the default), a direct commit, or a suggestion comment.",
++    },
++    {
++        title: "Checked as a batch.",
++        body: "When you apply several fixes together, PRism validates them together first. If the combined check fails, nothing is applied.",
++    },
++    {
++        title: "Stale-safe.",
++        body: "If someone pushes to the pull request while a fix is being prepared, PRism sees the new commit and discards the stale fix instead of applying it.",
++    },
++    {
++        title: "You can overrule the model.",
++        body: "Mark a finding as noise or a false alarm, or use Show this issue to bring back one that PRism filtered out.",
++    },
++];
+ 
+ export default function TrustSection() {
+     return (
+-        <section className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
++        <section id="control" className="scroll-mt-20 py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
+             <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight mb-12">
+                 You stay in control.
+             </h2>
+-            
+-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+-                <div className="space-y-8">
+-                    <div className="space-y-2">
+-                        <h3 className="text-lg font-medium text-foreground">Developer approves every fix.</h3>
+-                        <p className="text-base text-muted-foreground leading-relaxed">
+-                            PRism proposes. You select which findings to fix. Nothing is committed to your repository without your explicit approval.
+-                        </p>
++
++            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
++                {controls.map((item) => (
++                    <div key={item.title} className="space-y-2">
++                        <h3 className="text-lg font-medium text-foreground">{item.title}</h3>
++                        <p className="text-base text-muted-foreground leading-relaxed">{item.body}</p>
+                     </div>
++                ))}
++            </div>
++
++            <Card className="mt-12 bg-muted/30">
++                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-2">
+-                        <h3 className="text-lg font-medium text-foreground">Atomic batches.</h3>
+-                        <p className="text-base text-muted-foreground leading-relaxed">
+-                            If any fix in a batch fails validation in the isolated workspace, the entire batch is halted. Nothing is committed. All or nothing.
++                        <h3 className="text-lg font-medium text-foreground">What PRism asks GitHub for</h3>
++                        <p className="text-muted-foreground leading-relaxed">
++                            Signing in asks GitHub for the <span className="font-mono text-sm">repo</span> permission. PRism uses it to read your pull requests and code and, when you apply a fix, to push it to a branch or a commit. You can revoke access at any time in your{" "}
++                            <a href="https://github.com/settings/applications" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">
++                                GitHub settings
++                            </a>.
+                         </p>
+                     </div>
+                     <div className="space-y-2">
+-                        <h3 className="text-lg font-medium text-foreground">Stale-safe.</h3>
+-                        <p className="text-base text-muted-foreground leading-relaxed">
+-                            Before pushing a commit, PRism re-checks the PR head SHA. If a human pushed commits while the fixes were generating, the batch is marked STALE and discarded to prevent conflicts.
++                        <h3 className="text-lg font-medium text-foreground">Where your code goes when a fix is tested</h3>
++                        <p className="text-muted-foreground leading-relaxed">
++                            Fixes are tested in an isolated sandbox. It gets a copy of the code it needs to check the fix, but none of your environment variables, and it cannot reach private networks. Running your repository&apos;s tests is optional and set per repository.
+                         </p>
+                     </div>
+-                </div>
+-
+-                <div className="bg-muted/30 border rounded-xl p-8 font-mono text-sm h-full flex flex-col justify-center">
+-                    <div className="flex flex-col gap-1 relative">
+-                        <div className="flex items-center gap-4">
+-                            <div className="w-24 text-right text-muted-foreground">QUEUED</div>
+-                            <div className="w-2 h-2 rounded-full bg-border"></div>
+-                        </div>
+-                        <div className="h-6 border-l-2 border-border ml-[116px]"></div>
+-                        <div className="flex items-center gap-4">
+-                            <div className="w-24 text-right text-muted-foreground">GENERATING</div>
+-                            <div className="w-2 h-2 rounded-full bg-border relative">
+-                                <div className="absolute top-1/2 left-2 w-12 border-t-2 border-dashed border-border -translate-y-1/2"></div>
+-                            </div>
+-                            <div className="text-destructive bg-destructive/10 px-2 py-1 rounded text-xs ml-10">FAILED</div>
+-                        </div>
+-                        <div className="h-6 border-l-2 border-border ml-[116px]"></div>
+-                        <div className="flex items-center gap-4">
+-                            <div className="w-24 text-right text-foreground font-semibold">VALIDATING</div>
+-                            <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]"></div>
+-                        </div>
+-                        <div className="h-6 border-l-2 border-border ml-[116px]"></div>
+-                        <div className="flex items-center gap-4">
+-                            <div className="w-24 text-right text-muted-foreground">COMMITTING</div>
+-                            <div className="w-2 h-2 rounded-full bg-border relative">
+-                                <div className="absolute top-1/2 left-2 w-12 border-t-2 border-dashed border-border -translate-y-1/2"></div>
+-                                <div className="absolute -top-3 left-6 text-[9px] text-muted-foreground bg-muted px-1 whitespace-nowrap rounded">head SHA changed</div>
+-                            </div>
+-                            <div className="text-amber-600 bg-amber-500/10 px-2 py-1 rounded text-xs ml-10">STALE</div>
+-                        </div>
+-                        <div className="h-6 border-l-2 border-border ml-[116px]"></div>
+-                        <div className="flex items-center gap-4">
+-                            <div className="w-24 text-right text-muted-foreground">APPLIED</div>
+-                            <div className="w-2 h-2 rounded-full bg-border"></div>
+-                        </div>
+-                    </div>
+-                </div>
+-            </div>
++                </CardContent>
++            </Card>
+         </section>
+     );
+ }
+diff --git a/src/modules/auth/components/showcase/FindingRow.tsx b/src/modules/auth/components/showcase/FindingRow.tsx
+new file mode 100644
+index 0000000..35f612f
+--- /dev/null
++++ b/src/modules/auth/components/showcase/FindingRow.tsx
+@@ -0,0 +1,24 @@
++import { Badge } from "@/components/ui/badge";
++
++interface FindingRowProps {
++    severity: "High" | "Medium";
++    source: "Semgrep" | "ESLint";
++    origin: "New in this PR" | "Already in the base branch";
++    title: string;
++    location: string;
++}
++
++/** One finding, using the same words as the real review page. */
++export function FindingRow({ severity, source, origin, title, location }: FindingRowProps) {
++    return (
++        <li className="space-y-1.5 px-4 py-3">
++            <div className="flex flex-wrap items-center gap-2">
++                <Badge variant={severity === "High" ? "destructive" : "secondary"}>{severity} severity</Badge>
++                <Badge variant="outline">{source}</Badge>
++                <span className="text-xs text-muted-foreground">{origin}</span>
++            </div>
++            <p className="text-sm font-medium text-foreground">{title}</p>
++            <p className="font-mono text-xs text-muted-foreground">{location}</p>
++        </li>
++    );
++}
+diff --git a/src/modules/auth/components/showcase/FixChecks.tsx b/src/modules/auth/components/showcase/FixChecks.tsx
+new file mode 100644
+index 0000000..fe05433
+--- /dev/null
++++ b/src/modules/auth/components/showcase/FixChecks.tsx
+@@ -0,0 +1,26 @@
++import { Check, Minus } from "lucide-react";
++
++const checks = [
++    "Change applies cleanly",
++    "Code still parses",
++    "Semgrep no longer reports this issue",
++    "No new issues introduced",
++];
++
++/** "How this fix was checked", as shown on the review page. */
++export function FixChecks() {
++    return (
++        <ul className="space-y-2 text-sm">
++            {checks.map((label) => (
++                <li key={label} className="flex items-center gap-2">
++                    <Check className="size-4 shrink-0 text-foreground" aria-hidden />
++                    <span>{label}</span>
++                </li>
++            ))}
++            <li className="flex items-start gap-2 text-muted-foreground">
++                <Minus className="mt-0.5 size-4 shrink-0" aria-hidden />
++                <span>Install, lint, build and tests run when turned on for the repository.</span>
++            </li>
++        </ul>
++    );
++}
+diff --git a/src/modules/auth/components/showcase/PRPanel.tsx b/src/modules/auth/components/showcase/PRPanel.tsx
+deleted file mode 100644
+index 414a929..0000000
+--- a/src/modules/auth/components/showcase/PRPanel.tsx
++++ /dev/null
+@@ -1,100 +0,0 @@
+-import React from "react";
+-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+-import { Badge } from "@/components/ui/badge";
+-import { Blobatar } from "@/components/ui/blobatar";
+-import { Checkbox } from "@/components/ui/checkbox";
+-import { Button } from "@/components/ui/button";
+-
+-interface PRPanelProps {
+-    disableBadges?: boolean;
+-    highlightBadges?: boolean;
+-    highlightFix?: boolean;
+-}
+-
+-export function PRPanel({ disableBadges, highlightBadges, highlightFix }: PRPanelProps) {
+-    return (
+-        <Card className="w-full shadow-sm overflow-hidden border bg-background text-left">
+-            <CardHeader className="bg-muted/30 pb-4 border-b">
+-                <div className="flex items-center justify-between">
+-                    <div className="flex items-center gap-3">
+-                        <Blobatar name="acme/web-app" blobatar={{ animate: "hover", title: "acme/web-app" }} className="h-10 w-10 rounded-md" />
+-                        <div>
+-                            <div className="flex items-center gap-2">
+-                                <CardTitle className="text-lg font-semibold">acme/web-app</CardTitle>
+-                                <Badge variant="outline" className="text-muted-foreground font-normal">#142</Badge>
+-                            </div>
+-                            <CardDescription>Refactor auth middleware</CardDescription>
+-                        </div>
+-                    </div>
+-                    <Button 
+-                        size="sm" 
+-                        className={`transition-colors ${highlightFix ? 'bg-primary text-primary-foreground animate-pulse' : 'bg-foreground text-background hover:bg-foreground/90'}`}
+-                    >
+-                        Fix 2 selected
+-                    </Button>
+-                </div>
+-            </CardHeader>
+-            <CardContent className="p-0">
+-                <div className="divide-y divide-border">
+-                    {/* Finding 1 */}
+-                    <div className={`flex items-start gap-4 p-4 transition-colors ${highlightFix ? 'bg-primary/5' : 'hover:bg-muted/10'}`}>
+-                        <div className="mt-1">
+-                            <Checkbox checked={true} />
+-                        </div>
+-                        <div className="flex-1 space-y-1">
+-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+-                                <p className="font-medium text-sm text-foreground">Missing rate limiting on login endpoint</p>
+-                                {!disableBadges && (
+-                                    <Badge 
+-                                        variant="outline" 
+-                                        className={`w-fit border-transparent ${highlightBadges ? 'bg-destructive/20 text-destructive scale-105 transition-transform' : 'bg-destructive/10 text-destructive'}`}
+-                                    >
+-                                        INTRODUCED
+-                                    </Badge>
+-                                )}
+-                            </div>
+-                            <p className="text-muted-foreground text-sm">Found in <span className="font-mono text-xs bg-muted/50 px-1 py-0.5 rounded">src/api/auth.ts</span></p>
+-                        </div>
+-                    </div>
+-                    {/* Finding 2 */}
+-                    <div className={`flex items-start gap-4 p-4 transition-colors ${highlightFix ? 'bg-primary/5' : 'hover:bg-muted/10'}`}>
+-                        <div className="mt-1">
+-                            <Checkbox checked={true} />
+-                        </div>
+-                        <div className="flex-1 space-y-1">
+-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+-                                <p className="font-medium text-sm text-foreground">Unsafe regular expression</p>
+-                                {!disableBadges && (
+-                                    <Badge 
+-                                        variant="outline" 
+-                                        className={`w-fit border-transparent ${highlightBadges ? 'bg-destructive/20 text-destructive scale-105 transition-transform' : 'bg-destructive/10 text-destructive'}`}
+-                                    >
+-                                        INTRODUCED
+-                                    </Badge>
+-                                )}
+-                            </div>
+-                            <p className="text-muted-foreground text-sm">Found in <span className="font-mono text-xs bg-muted/50 px-1 py-0.5 rounded">src/utils/validation.ts</span></p>
+-                        </div>
+-                    </div>
+-                    {/* Finding 3 */}
+-                    <div className="flex items-start gap-4 p-4 hover:bg-muted/10 transition-colors opacity-50">
+-                        <div className="mt-1">
+-                            <Checkbox checked={false} disabled />
+-                        </div>
+-                        <div className="flex-1 space-y-1">
+-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+-                                <p className="font-medium text-sm text-foreground">Deprecated API usage in legacy module</p>
+-                                {!disableBadges && (
+-                                    <Badge variant="outline" className="w-fit bg-muted text-muted-foreground border-transparent">
+-                                        PRE_EXISTING
+-                                    </Badge>
+-                                )}
+-                            </div>
+-                            <p className="text-muted-foreground text-sm">Found in <span className="font-mono text-xs bg-muted/50 px-1 py-0.5 rounded">src/legacy/parser.ts</span></p>
+-                        </div>
+-                    </div>
+-                </div>
+-            </CardContent>
+-        </Card>
+-    );
+-}
+diff --git a/src/modules/auth/components/showcase/ReviewPreview.tsx b/src/modules/auth/components/showcase/ReviewPreview.tsx
+new file mode 100644
+index 0000000..0b98b05
+--- /dev/null
++++ b/src/modules/auth/components/showcase/ReviewPreview.tsx
+@@ -0,0 +1,56 @@
++import { Badge } from "@/components/ui/badge";
++import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
++import { FindingRow } from "./FindingRow";
++
++/** A static example of a PRism review. Everything on it is illustrative. */
++export function ReviewPreview() {
++    return (
++        <Card className="w-full text-left">
++            <CardHeader className="border-b">
++                <div className="flex items-start justify-between gap-3">
++                    <div>
++                        <CardTitle>acme/api · #142</CardTitle>
++                        <CardDescription>feat: add user search</CardDescription>
++                    </div>
++                    <Badge variant="outline">Example review</Badge>
++                </div>
++            </CardHeader>
++            <CardContent className="p-0">
++                <p className="border-b px-4 py-3 text-sm text-muted-foreground">
++                    5 issues found · 3 shown · 2 filtered out as noise
++                </p>
++                <ul className="divide-y">
++                    <FindingRow
++                        severity="High"
++                        source="Semgrep"
++                        origin="New in this PR"
++                        title="Potential SQL injection detected. Use parameterized queries."
++                        location="userService.js:6 · prism-sql-injection"
++                    />
++                    <FindingRow
++                        severity="Medium"
++                        source="ESLint"
++                        origin="New in this PR"
++                        title="'usr' is not defined."
++                        location="userService.js:17 · no-undef"
++                    />
++                    <FindingRow
++                        severity="High"
++                        source="Semgrep"
++                        origin="Already in the base branch"
++                        title="Potential command injection detected. Avoid passing untrusted strings to exec()."
++                        location="backup.js:4 · prism-command-injection"
++                    />
++                </ul>
++                <div className="space-y-1 border-t bg-muted/30 px-4 py-3 text-sm">
++                    <p className="font-medium">Filtered out as noise · 2</p>
++                    <p className="text-muted-foreground">PRism rated these as unlikely to matter. Open to check them or bring one back.</p>
++                </div>
++                <div className="space-y-1 border-t px-4 py-3 text-sm">
++                    <p className="font-medium">AI suggestions · 2 <span className="font-normal text-muted-foreground">(optional)</span></p>
++                    <p className="text-muted-foreground">Possible logic bugs you may want to look at. They are not confirmed by a scanner or by tests.</p>
++                </div>
++            </CardContent>
++        </Card>
++    );
++}
+diff --git a/src/modules/auth/utils/authErrors.ts b/src/modules/auth/utils/authErrors.ts
+new file mode 100644
+index 0000000..6e6ed75
+--- /dev/null
++++ b/src/modules/auth/utils/authErrors.ts
+@@ -0,0 +1,8 @@
++/** Turns the `?error=` code better-auth adds to /login after a failed GitHub sign-in into a message. */
++export function getAuthErrorMessage(code: string | undefined): string | null {
++    if (!code) return null;
++    if (code === "access_denied") {
++        return "GitHub sign-in was cancelled. You can try again whenever you're ready.";
++    }
++    return "GitHub sign-in didn't complete. Please try again.";
++}

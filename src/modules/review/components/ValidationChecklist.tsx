@@ -5,7 +5,7 @@ function CheckIcon({ state }: { state: CheckView["state"] }) {
     const size = "size-4 shrink-0 mt-0.5";
     if (state === "passed") return <CheckCircle2 className={`${size} text-success`} aria-label="Passed" />;
     if (state === "failed") return <XCircle className={`${size} text-destructive`} aria-label="Failed" />;
-    if (state === "running") return <Loader2 className={`${size} text-blue-500 animate-spin`} aria-label="Running" />;
+    if ((state as string) === "running") return <Loader2 className={`${size} text-blue-500 animate-spin`} aria-label="Running" />;
     return <Minus className={`${size} text-muted-foreground/50`} aria-label="Not run" />;
 }
 

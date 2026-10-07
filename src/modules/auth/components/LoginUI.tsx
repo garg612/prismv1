@@ -2,100 +2,84 @@
 
 import { authClient } from "@/lib/authClient"
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { GithubLight } from "@/components/ui/svgs/githubLight"
-import { GithubDark } from "@/components/ui/svgs/githubDark"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
+import GithubSignInButton from "./GithubSignInButton"
+import { Mascot } from 'page-mascot'
 
-const LoginUI = () => {
+const DEMO_ERROR = "Failed to sign in with the demo account. Please try again."
+
+const LoginUI = ({ initialError = null }: { initialError?: string | null }) => {
     const { signIn } = authClient
-    const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-
-    const handleGithubLogin = async () => {
-        setError(null)
-        setIsLoading(true)
-        try {
-            await signIn.social({
-                provider: "github"
-            })
-        } catch (error) {
-            console.log("Error in GitHub Login:", error)
-            setError("Failed to sign in with GitHub. Please try again.")
-            setIsLoading(false)
-        } 
-    }
+    const [error, setError] = useState<string | null>(initialError)
+    const [isDemoLoading, setIsDemoLoading] = useState(false)
+    const router = useRouter()
 
     const handleDemoLogin = async () => {
         setError(null)
-        setIsLoading(true)
+        setIsDemoLoading(true)
         try {
             const res = await signIn.email({
                 email: "demo@prism.local",
                 password: "Demo@123"
             })
             if (res.error) {
-                console.log("Error in Demo Login:", res.error)
-                setError("Failed to sign in with Demo Account. Please try again.")
-                setIsLoading(false)
+                setError(DEMO_ERROR)
+                setIsDemoLoading(false)
             } else {
-                window.location.href = "/dashboard"
+                router.push("/dashboard")
             }
-        } catch (error) {
-            console.log("Error in Demo Login:", error)
-            setError("Failed to sign in with Demo Account. Please try again.")
-            setIsLoading(false)
+        } catch {
+            setError(DEMO_ERROR)
+            setIsDemoLoading(false)
         }
     }
 
     return (
-        <Card className="w-full max-w-sm mx-auto shadow-xl">
-            <CardHeader className="text-center">
-                <h2 className="font-heading text-2xl font-semibold leading-snug tracking-tight">Start reviewing.</h2>
-                <CardDescription>
-                    Sign in with GitHub to connect your first repository.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className="relative w-full max-w-sm mx-auto mt-20">
+            <div className="absolute -top-[115px] left-1/2 -translate-x-1/2 z-20 drop-shadow-xl">
+                <Mascot
+                    directions="/mascots/cat-directions.webp"
+                    reactions="/mascots/cat-reactions.webp"
+                />
+            </div>
+            <Card className="w-full shadow-2xl border-primary/20 bg-background/60 backdrop-blur-xl relative z-10 pt-2">
+                <CardHeader className="text-center">
+                    <h2 className="font-heading text-3xl font-semibold leading-snug tracking-tight">Welcome back</h2>
+                    <CardDescription className="text-base">
+                        Sign in with GitHub to connect your first repository.
+                    </CardDescription>
+                </CardHeader>
+            <CardContent className="space-y-4">
                 {error && (
-                    <p role="alert" className="mb-4 text-sm text-destructive text-center">
-                        {error}
-                    </p>
+                    <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                 )}
 
-                <Button
-                    variant="outline"
-                    className="w-full font-medium"
-                    onClick={handleGithubLogin}
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    ) : (
-                        <div className="mr-2 flex h-5 w-5 items-center justify-center">
-                            <GithubLight className="h-full w-full dark:hidden" />
-                            <GithubDark className="h-full w-full hidden dark:block" />
-                        </div>
-                    )}
-
-                    Sign in with GitHub
-                </Button>
+                <GithubSignInButton variant="outline" className="w-full font-medium" onError={setError} />
 
                 {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
                     <Button
                         variant="secondary"
-                        className="w-full font-medium mt-4 border-border/50"
+                        className="w-full font-medium border-border/50"
                         onClick={handleDemoLogin}
-                        disabled={isLoading}
+                        disabled={isDemoLoading}
                     >
-                        Sign in with Demo Account
+                        {isDemoLoading ? "Signing in…" : "Sign in with Demo Account"}
                     </Button>
                 )}
             </CardContent>
-            <CardFooter className="text-center text-sm text-muted-foreground flex justify-center">
-                By continuing, you authorize PRism to access your repositories.
+            <CardFooter className="justify-center text-center text-sm text-muted-foreground pb-6">
+                <p>
+                    PRism asks GitHub for the repo permission so it can read your pull requests and push fixes you approve.{" "}
+                    <a href="#control" className="underline underline-offset-4 hover:text-foreground transition-colors">Details</a>
+                </p>
             </CardFooter>
-        </Card>
+            </Card>
+        </div>
     )
 }
 

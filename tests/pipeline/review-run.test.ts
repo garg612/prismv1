@@ -115,9 +115,9 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
     // Testing billing atomicity
     const db = (await import('@/lib/db')).default;
     // The conditional updateMany handles billing idempotency atomically
-    // @ts-expect-error Mock implementation
+
     db.reviewRun.updateMany.mockResolvedValueOnce({ count: 1 }); // Winner
-    // @ts-expect-error Mock implementation
+
     db.reviewRun.updateMany.mockResolvedValueOnce({ count: 0 }); // Loser
 
     expect(db.reviewRun.updateMany).toBeDefined();
@@ -127,20 +127,20 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
     // Testing stale publishing race
     const db = (await import('@/lib/db')).default;
     // Run A reaches publish. findUnique returns a newer SHA
-    // @ts-expect-error Mock implementation
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'newer-sha' });
     expect(db.pullRequest.findUnique).toBeDefined();
   });
 
   it('Option D Race Protection: Case A - newer review already ready', async () => {
     const db = (await import('@/lib/db')).default;
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'current-sha' }); // pre-check
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'newer-sha' }); // post-check
-    // @ts-expect-error Mock
+
     db.reviewRun.findFirst.mockResolvedValueOnce({ status: 'COMPLETED', id: 'run-new' }); // resolveLatestRunState
-    // @ts-expect-error Mock
+
     db.review.findFirst.mockResolvedValueOnce({ review: 'newer-review-text' });
     
     expect(db.reviewRun.findFirst).toBeDefined();
@@ -148,11 +148,11 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
 
   it('Option D Race Protection: Case B - newer review processing', async () => {
     const db = (await import('@/lib/db')).default;
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'current-sha' }); // pre-check
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'newer-sha' }); // post-check
-    // @ts-expect-error Mock
+
     db.reviewRun.findFirst.mockResolvedValueOnce({ status: 'SCANNING', id: 'run-new' }); // resolveLatestRunState
     
     expect(db.reviewRun.findFirst).toBeDefined();
@@ -160,11 +160,11 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
 
   it('Option D Race Protection: Case D - newer review failed', async () => {
     const db = (await import('@/lib/db')).default;
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'current-sha' }); // pre-check
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'newer-sha' }); // post-check
-    // @ts-expect-error Mock
+
     db.reviewRun.findFirst.mockResolvedValueOnce({ status: 'FAILED', id: 'run-new' }); // resolveLatestRunState
     
     expect(db.reviewRun.findFirst).toBeDefined();
@@ -172,9 +172,9 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
 
   it('Option D Race Protection: Case E - newest run publishes normally', async () => {
     const db = (await import('@/lib/db')).default;
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'current-sha' }); // pre-check
-    // @ts-expect-error Mock
+
     db.pullRequest.findUnique.mockResolvedValueOnce({ latestHeadSha: 'current-sha' }); // post-check
     
     expect(db.pullRequest.findUnique).toBeDefined();
@@ -185,7 +185,7 @@ describe('Stage 2 ReviewRun Orchestrator', () => {
     const db = (await import('@/lib/db')).default;
     
     // Existing run exists
-    // @ts-expect-error Mock implementation
+
     db.reviewRun.aggregate.mockResolvedValueOnce({ _max: { attempt: 1 } });
     
     // If not manual rerun, it throws DUPLICATE_RUN in the step

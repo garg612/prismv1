@@ -72,7 +72,7 @@ describe('reported problem 1: "E2B Validation — Not Run"', () => {
         const view = buildReviewView(run(), null);
         expect(view.steps.map(s => s.key)).toEqual(['scan', 'triage', 'fix', 'decision', 'recheck']);
         expect(view.shown[0].fix!.executionNote).toMatch(/execution validation is turned off for this repository/);
-        expect(view.shown[0].fix!.checks.some(c => c.state === 'notRun')).toBe(false);
+        expect(view.shown[0].fix!.execChecks.some(c => c.state === 'notRun')).toBe(false);
     });
 
     it('when enabled and run, each execution check is listed and the note disappears', () => {
@@ -83,7 +83,7 @@ describe('reported problem 1: "E2B Validation — Not Run"', () => {
         }), null);
         const f = view.shown[0].fix!;
         expect(f.executionNote).toBeNull();
-        expect(f.checks.find(c => c.label === 'Tests')).toMatchObject({ state: 'passed' });
+        expect(f.execChecks.find(c => c.label === 'Tests')).toMatchObject({ state: 'passed' });
     });
 
     it('when enabled but execution could not start, the reason is shown', () => {
@@ -288,7 +288,7 @@ describe('other states', () => {
         const view = buildReviewView(run({ status: 'COMPLETED', findings: [finding({ fixes: [fix({ status: 'NOT_READY', outcome: 'NEW_FINDING_INTRODUCED', validationRuns: [bad] })] })] }), null);
         const f = view.shown[0].fix!;
         expect(f.problem).toBe('The proposed change introduced a new issue.');
-        expect(f.checks.find(c => c.label === 'No new issues introduced')).toMatchObject({ state: 'failed', detail: 'introduces prism-command-injection' });
+        expect(f.staticChecks.find(c => c.label === 'No new issues introduced')).toMatchObject({ state: 'failed', detail: 'introduces prism-command-injection' });
     });
 });
 

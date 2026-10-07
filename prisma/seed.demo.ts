@@ -164,7 +164,7 @@ async function main() {
   });
 
   console.log("Upserting repositories...");
-  const repoRecords = [];
+  const repoRecords: any[] = [];
   for (const r of repoRecordsData) {
     const repoRecord = await prisma.repository.upsert({
       where: { githubId: r.githubId },

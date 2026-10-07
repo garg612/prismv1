@@ -28,6 +28,35 @@ interface GlobalTrustChartProps {
 
 type Timeframe = "days" | "weeks" | "months" | "years";
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover/95 backdrop-blur-xs border border-border p-3 rounded-lg shadow-lg min-w-[200px]">
+        <p className="font-semibold text-sm mb-2 text-foreground">{payload[0].payload.displayDate}</p>
+        {payload.map((entry: any, index: number) => {
+          const metricName = entry.dataKey === "FALSE_ALARM_RATE" ? "False Alarm Rate" : "Fix Acceptance";
+          const rawData = entry.payload.raw[entry.dataKey];
+          const rawText = rawData && rawData.den > 0 ? `(${rawData.num}/${rawData.den})` : "(0/0)";
+          
+          return (
+            <div key={index} className="flex justify-between items-center text-xs mb-1.5 gap-4">
+              <div className="flex items-center gap-2">
+                <div className="size-2 rounded-full shadow-xs" style={{ backgroundColor: entry.color }} />
+                <span className="text-muted-foreground font-medium">{metricName}</span>
+              </div>
+              <div className="font-bold text-foreground tabular-nums">
+                {entry.value !== null && entry.value !== undefined ? `${entry.value.toFixed(1)}%` : 'No data'}
+                <span className="text-[10px] text-muted-foreground ml-1 font-normal">{rawText}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+};
+
 export function GlobalTrustChart({ snapshots, isLoading }: GlobalTrustChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("days");
 
@@ -110,35 +139,6 @@ export function GlobalTrustChart({ snapshots, isLoading }: GlobalTrustChartProps
     );
   }
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-popover/95 backdrop-blur-xs border border-border p-3 rounded-lg shadow-lg min-w-[200px]">
-          <p className="font-semibold text-sm mb-2 text-foreground">{payload[0].payload.displayDate}</p>
-          {payload.map((entry: any, index: number) => {
-            const metricName = entry.dataKey === "FALSE_ALARM_RATE" ? "False Alarm Rate" : "Fix Acceptance";
-            const rawData = entry.payload.raw[entry.dataKey];
-            const rawText = rawData && rawData.den > 0 ? `(${rawData.num}/${rawData.den})` : "(0/0)";
-            
-            return (
-              <div key={index} className="flex justify-between items-center text-xs mb-1.5 gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="size-2 rounded-full shadow-xs" style={{ backgroundColor: entry.color }} />
-                  <span className="text-muted-foreground font-medium">{metricName}</span>
-                </div>
-                <div className="font-bold text-foreground tabular-nums">
-                  {entry.value !== null && entry.value !== undefined ? `${entry.value.toFixed(1)}%` : 'No data'}
-                  <span className="text-[10px] text-muted-foreground ml-1 font-normal">{rawText}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -169,7 +169,7 @@ export function GlobalTrustChart({ snapshots, isLoading }: GlobalTrustChartProps
           </div>
         ) : (
           <div className="h-[220px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <LineChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="opacity-10" />
                 <XAxis 

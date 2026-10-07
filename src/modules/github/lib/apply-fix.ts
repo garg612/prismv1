@@ -105,7 +105,7 @@ async function applyDirectCommit(
         
         // 2. Create blobs for the modified files
         const edits = fix.edits as any[];
-        const treeItems = [];
+        const treeItems: any[] = [];
         
         // Edits to the same file accumulate, so the second edit sees the first one's result.
         const pending = new Map<string, string>();
@@ -208,7 +208,7 @@ async function applyStackedPr(
 
     // 2. Create blobs and tree. The branch is only written once the commit exists.
     const edits = fix.edits as any[];
-    const treeItems = [];
+    const treeItems: any[] = [];
     // Edits to the same file accumulate, so the second edit sees the first one's result.
     const pending = new Map<string, string>();
     let alreadyApplied = 0;

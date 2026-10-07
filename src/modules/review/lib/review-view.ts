@@ -287,11 +287,18 @@ function buildChecks(fix: any, finding: any, executionEnabled: boolean): { stati
                 }
             }
         }
+    } else if (WORKING_FIX.includes(fix.status)) {
+        staticChecks.push({ label: "Syntax and resolution checks", state: "running" as any });
     }
 
     const baseline = runs.find(r => r.tier === "EXECUTION" && r.kind === "BASELINE");
     const fixed = runs.find(r => r.tier === "EXECUTION" && r.kind === "FIXED");
     if (!fixed) {
+        if (executionEnabled && WORKING_FIX.includes(fix.status)) {
+            execChecks.push({ label: "Installing dependencies and running checks", state: "running" as any });
+            return { staticChecks, execChecks, executionNote: null };
+        }
+
         return {
             staticChecks,
             execChecks,
@@ -607,7 +614,7 @@ export function buildReviewView(run: any, latestRun: LatestRunInput | null, now:
     else if (applying.length > 0) decision = { key: "decision", label: "Your decision", state: "active", detail: "Applying the fix" };
     else if (ready.length > 0 && run.status === "AWAITING_APPROVAL") decision = { key: "decision", label: "Your decision", state: "waiting", detail: `${plural(ready.length, "fix", "fixes")} waiting for you` };
     else if (applied.length > 0 || rejected.length > 0) {
-        const parts = [];
+        const parts: any[] = [];
         if (applied.length) parts.push(`${applied.length} accepted`);
         if (rejected.length) parts.push(`${rejected.length} rejected`);
         decision = { key: "decision", label: "Your decision", state: "done", detail: parts.join(", ") };
@@ -706,8 +713,8 @@ export function buildReviewView(run: any, latestRun: LatestRunInput | null, now:
         const still = Array.from(fixedEarlier.keys()).filter(fp => present.has(fp)).length;
         earlierReview = { runId: source.id, headSha: short(source.headSha) };
 
-        const verified: StepView = !scansDone
-            ? { key: "verified", label: "Verified", state: "todo", detail: "" }
+        const verified: StepView = (!scansDone || runInProgress)
+            ? { key: "verified", label: "Verified", state: "todo", detail: "Checking results..." }
             : still === 0
                 ? { key: "verified", label: "Verified", state: "done", detail: `No longer detected in ${headSha}` }
                 : { key: "verified", label: "Verified", state: "failed", detail: `${plural(still, "issue")} still detected in ${headSha}` };

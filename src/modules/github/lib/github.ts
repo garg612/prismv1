@@ -42,10 +42,10 @@ export const getGithubToken = async () => {
 
 export async function fetchUserContribution(token: string, username: string) {
     if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
-        const weeks = [];
+        const weeks: any[] = [];
         const now = new Date();
         for (let w = 0; w < 52; w++) {
-            const days = [];
+            const days: any[] = [];
             for (let d = 0; d < 7; d++) {
                 const date = new Date(now);
                 date.setDate(now.getDate() - (52 - w) * 7 - (6 - d));

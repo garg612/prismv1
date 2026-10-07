@@ -17,7 +17,7 @@ const POOL_IDLE_MS = parseInt(process.env.DATABASE_POOL_IDLE_MS || "240000", 10)
 const poolSettings = `${POOL_MAX}:${POOL_IDLE_MS}`;
 
 declare const globalThis: {
-    prismaGlobal?: ReturnType<typeof prismaClientSingleton>
+    prismaGlobal?: PrismaClient
     prismaGlobalAdapter?: PrismaPg
     prismaGlobalPoolSettings?: string
 } & typeof global

@@ -165,7 +165,7 @@ describe('Stage 10: Load Test', () => {
 
     describe('Throughput Metrics', () => {
         it('measures p50 and p95 latency for batch reviews', () => {
-            const results = [];
+            const results: any[] = [];
             for (let run = 0; run < 10; run++) {
                 results.push(simulateConcurrentReviews(25));
             }

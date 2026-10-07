@@ -1,24 +1,21 @@
-"use client";
-
-import React from "react";
 import StickyHeader from "./StickyHeader";
 import HeroSection from "./HeroSection";
-import ProblemSection from "./ProblemSection";
+import FeaturesSection from "./FeaturesSection";
 import PipelineSection from "./PipelineSection";
 import TrustSection from "./TrustSection";
 import SignInSection from "./SignInSection";
 import Footer from "./Footer";
 
-export default function LoginPage() {
+export default function LoginPage({ authError = null }: { authError?: string | null }) {
     return (
         <div className="flex flex-col min-h-screen">
             <StickyHeader />
             <div className="flex-1">
                 <HeroSection />
-                <ProblemSection />
+                <FeaturesSection />
                 <PipelineSection />
                 <TrustSection />
-                <SignInSection />
+                <SignInSection authError={authError} />
             </div>
             <Footer />
         </div>

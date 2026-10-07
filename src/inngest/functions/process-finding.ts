@@ -453,7 +453,7 @@ export const processFinding = inngest.createFunction(
                 const fixed = execResults.fixed || {};
                 // CheckStatus has no UNVERIFIABLE; a script we refused to run was not available to run.
                 const toCheckStatus = (status: string) => status === "UNVERIFIABLE" ? "UNAVAILABLE" : status;
-                const dbResults = [];
+                const dbResults: any[] = [];
 
                 for (const check of EXEC_CHECKS) {
                     const bRes = baseline[check] || { status: "UNAVAILABLE" };

@@ -53,7 +53,7 @@ export function MonthlyActivityLineChart({ data, isLoading }: MonthlyActivityLin
         <CardDescription>Track your monthly activity</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 min-h-[300px]">
-        <ResponsiveContainer width="99%" height={300}>
+        <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
           <LineChart data={data || []} margin={{ top: 15, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="currentColor" className="opacity-10" />
             <XAxis dataKey="name" tickLine={false} axisLine={false} className="text-xs text-muted-foreground font-medium" dy={10} />

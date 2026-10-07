@@ -27,6 +27,19 @@ interface ReviewHealthRadarProps {
   };
   isLoading: boolean;
 }
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const item = payload[0].payload;
+    return (
+      <div className="bg-popover/95 backdrop-blur-xs border border-border p-3 rounded-lg shadow-lg">
+        <p className="font-semibold text-sm mb-1">{item.subject}</p>
+        <p className="text-xs text-muted-foreground">{item.rawText}</p>
+        <p className="text-xs font-bold mt-1 text-primary">{item.value}% Score</p>
+      </div>
+    );
+  }
+  return null;
+};
 
 export function ReviewHealthRadar({ stats, isLoading }: ReviewHealthRadarProps) {
   if (isLoading) {
@@ -77,7 +90,7 @@ export function ReviewHealthRadar({ stats, isLoading }: ReviewHealthRadarProps) 
       value: stats.findingsAnalyzed > 0 
         ? 100 - safePercent(stats.findingsSurfaced, stats.findingsAnalyzed)
         : 100,
-      rawText: `${Math.max(0, stats.findingsAnalyzed - stats.findingsSurfaced)} filtered / ${stats.findingsAnalyzed} raw alerts`,
+      rawText: `${Math.max(0, stats.findingsAnalyzed - stats.findingsSurfaced)} noise cleared / ${stats.findingsAnalyzed} findings`,
     },
     {
       subject: "Autofix Capability",
@@ -104,20 +117,6 @@ export function ReviewHealthRadar({ stats, isLoading }: ReviewHealthRadarProps) 
 
   const primaryColor = "#6366f1"; // Indigo-500
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const item = payload[0].payload;
-      return (
-        <div className="bg-popover/95 backdrop-blur-xs border border-border p-3 rounded-lg shadow-lg">
-          <p className="font-semibold text-sm mb-1">{item.subject}</p>
-          <p className="text-xs text-muted-foreground">{item.rawText}</p>
-          <p className="text-xs font-bold mt-1 text-primary">{item.value}% Score</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <Card className="h-full flex flex-col justify-between">
       <CardHeader className="pb-2">
@@ -126,7 +125,7 @@ export function ReviewHealthRadar({ stats, isLoading }: ReviewHealthRadarProps) 
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-center min-h-[280px]">
         <div className="h-[250px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <RadarChart cx="50%" cy="50%" outerRadius="68%" data={data}>
               <PolarGrid stroke="currentColor" className="opacity-15" />
               <PolarAngleAxis 

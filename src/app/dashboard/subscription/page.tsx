@@ -85,7 +85,7 @@ export default function SubscriptionPage() {
         setCheckoutLoading(true);
         try {
             await checkout({
-                slug:"PRism"
+                slug:"PRISM"
             });
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Failed to start checkout");
@@ -249,6 +249,23 @@ export default function SubscriptionPage() {
                         </div>
                         {!isPro && (
                             <Progress value={repositoriesPercentage} className="h-2 mt-2" />
+                        )}
+
+                        {Object.values(data.limits?.reviews || {}).length > 0 && (
+                            <div className="mt-6 space-y-4">
+                                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Reviews Usage</h4>
+                                {Object.values(data.limits!.reviews).map((repoStats, idx) => (
+                                    <div key={idx}>
+                                        <div className="flex items-center justify-between text-sm font-medium">
+                                            <span className="truncate max-w-[200px]" title={repoStats.name}>{repoStats.name}</span>
+                                            <span>{isPro ? "Unlimited" : `${repoStats.current} / ${repoStats.limit}`}</span>
+                                        </div>
+                                        {!isPro && (
+                                            <Progress value={Math.min((repoStats.current / (repoStats.limit || 5)) * 100, 100)} className="h-2 mt-2" />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </CardContent>
                 </Card>

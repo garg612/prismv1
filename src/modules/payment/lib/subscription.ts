@@ -13,6 +13,7 @@ export interface UserLimits {
     };
     reviews: {
         [repositoryId: string]: {
+            name: string;
             current: number;
             limit: number | null;
             canAdd: boolean;
@@ -77,7 +78,6 @@ export async function canCreateReview(
     userId: string,
     repositoryId: string
 ): Promise<boolean> {
-    return true;
     const tier = await getUserTier(userId);
 
     if (tier === "PRO") {
@@ -157,13 +157,14 @@ export async function getRemainingLimits(userId: string): Promise<UserLimits> {
     // Get all user's repositories
     const repositories = await prisma.repository.findMany({
         where: { userId },
-        select: { id: true },
+        select: { id: true, owner: true, name: true },
     });
 
     // Calculate limits for each repository
     for (const repo of repositories) {
         const currentCount = reviewCounts[repo.id] || 0;
         limits.reviews[repo.id] = {
+            name: `${repo.owner}/${repo.name}`,
             current: currentCount,
             limit: tier === "PRO" ? null : TIER_LIMITS.FREE.reviewsPerRepo,
             canAdd: tier === "PRO" || currentCount < TIER_LIMITS.FREE.reviewsPerRepo,

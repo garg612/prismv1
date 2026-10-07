@@ -248,7 +248,7 @@ export async function indexCodebase(
     repoId: string,
     files: { path: string; content: string }[]
 ): Promise<void> {
-    const vectors = [];
+    const vectors: any[] = [];
     for (const file of files) {
         const content = `File:${file.path}\n\n${file.content}`;
         const truncatedContent = content.slice(0, 8000);

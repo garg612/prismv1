@@ -69,8 +69,8 @@ describe('review page: why tests were not run', () => {
 
         expect(fix.executionNote).toBe(`${summary} This fix was checked by static analysis only.`);
         expect(fix.canDecide).toBe(true);
-        expect(fix.checks.every(c => c.state === 'passed')).toBe(true);
-        expect(fix.checks.map(c => c.label)).not.toContain('Tests');
+        expect(fix.execChecks.every(c => c.state === 'passed')).toBe(true);
+        expect(fix.execChecks.map(c => c.label)).not.toContain('Tests');
     });
 
     it('tests that really ran are listed as checks, with no note', () => {
@@ -81,6 +81,6 @@ describe('review page: why tests were not run', () => {
         ]), null).shown[0].fix!;
 
         expect(fix.executionNote).toBeNull();
-        expect(fix.checks.find(c => c.label === 'Tests')).toMatchObject({ state: 'passed', detail: 'passes before and after the change' });
+        expect(fix.execChecks.find(c => c.label === 'Tests')).toMatchObject({ state: 'passed', detail: 'passes before and after the change' });
     });
 });

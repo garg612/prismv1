@@ -24,6 +24,7 @@ export interface SubscriptionData {
         };
         reviews: {
             [repositoryId: string]: {
+                name: string;
                 current: number;
                 limit: number | null;
                 canAdd: boolean;

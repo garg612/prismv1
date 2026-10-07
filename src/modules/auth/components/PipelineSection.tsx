@@ -1,171 +1,165 @@
-"use client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check } from "lucide-react";
+import { FixChecks } from "./showcase/FixChecks";
 
-import React, { useState } from "react";
-import { PRPanel } from "./showcase/PRPanel";
+function RiskRow({ title, score, outcome }: { title: string; score: number; outcome: string }) {
+    return (
+        <li className="space-y-1.5">
+            <p className="text-sm font-medium">{title}</p>
+            <div className="flex items-center gap-3">
+                <div className="h-1.5 flex-1 rounded-full bg-muted" role="img" aria-label={`Risk score ${score} out of 100`}>
+                    <div className="h-full rounded-full bg-foreground" style={{ width: `${score}%` }} />
+                </div>
+                <span className="w-16 text-right font-mono text-xs text-muted-foreground">{score} / 100</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{outcome}</p>
+        </li>
+    );
+}
 
 const steps = [
     {
-        id: "connect",
-        title: "Connect & index",
-        desc: "Sign in with GitHub and connect a repository. PRism embeds the codebase for contextual understanding.",
+        id: "scan",
+        label: "Scan",
+        title: "Scan the pull request",
+        body: "When a pull request opens or gets a new commit, PRism runs Semgrep and ESLint on the exact commit. An AI reviewer also reads the diff for logic bugs, and labels those as suggestions.",
+        visual: (
+            <Card size="sm">
+                <CardHeader>
+                    <CardTitle>Scan</CardTitle>
+                    <CardDescription>5 issues found on this commit</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ul className="divide-y text-sm">
+                        <li className="flex justify-between py-2"><span>Semgrep</span><span className="text-muted-foreground">3 findings</span></li>
+                        <li className="flex justify-between py-2"><span>ESLint</span><span className="text-muted-foreground">2 findings</span></li>
+                        <li className="flex justify-between py-2"><span>AI logic review</span><span className="text-muted-foreground">2 suggestions</span></li>
+                    </ul>
+                </CardContent>
+            </Card>
+        ),
     },
     {
-        id: "detect",
-        title: "Detect",
-        desc: "A pull request opens. PRism reads the changed files and runs analysis on the exact commit SHA.",
-    },
-    {
-        id: "classify",
-        title: "Classify",
-        desc: "Each finding is labeled. INTRODUCED means this PR caused it. PRE_EXISTING means it was already there.",
+        id: "triage",
+        label: "Triage",
+        title: "Decide what is worth your time",
+        body: "Each finding gets a risk score. Likely noise is moved into a collapsed list, and you can bring any of it back with one click. High-severity security issues are always shown, whatever their score.",
+        visual: (
+            <Card size="sm">
+                <CardHeader>
+                    <CardTitle>Triage</CardTitle>
+                    <CardDescription>Example risk scores: 0 is noise, 100 is a real problem</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ul className="space-y-4">
+                        <RiskRow title="Potential SQL injection detected." score={82} outcome="Shown" />
+                        <RiskRow title="'usr' is not defined." score={80} outcome="Shown" />
+                        <RiskRow title="Debugging console.log detected." score={33} outcome="Filtered out as noise" />
+                    </ul>
+                </CardContent>
+            </Card>
+        ),
     },
     {
         id: "fix",
-        title: "Fix",
-        desc: "PRism prefers deterministic fixes from the analyzer. When none exist, it generates a structured edit proposal.",
+        label: "Fix",
+        title: "Propose a fix and check it",
+        body: "PRism writes a small change, applies it in an isolated sandbox and scans again. If you turned on tests for the repository, it also runs install, lint, build and tests on the code before and after the fix.",
+        visual: (
+            <Card size="sm">
+                <CardHeader>
+                    <CardTitle>Suggested fix</CardTitle>
+                    <CardDescription className="font-mono text-xs">userService.js</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <pre className="overflow-x-auto rounded-md border font-mono text-xs leading-relaxed">
+                        <code className="block bg-destructive/10 px-3 py-1">{"- return db.query(\"SELECT * FROM users WHERE username = '\" + username + \"'\");"}</code>
+                        <code className="block bg-success/15 px-3 py-1">{"+ return db.query(\"SELECT * FROM users WHERE username = $1\", [username]);"}</code>
+                    </pre>
+                    <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase text-muted-foreground">How this fix was checked</p>
+                        <FixChecks />
+                    </div>
+                </CardContent>
+            </Card>
+        ),
     },
     {
-        id: "validate",
-        title: "Validate",
-        desc: "Every fix is applied in an isolated workspace, re-analyzed, and validated.",
+        id: "decision",
+        label: "Your decision",
+        title: "You choose what to apply",
+        body: "Pick the fixes you want. Selected fixes are checked together before anything is applied. You can also mark a finding as noise or a false alarm.",
+        visual: (
+            <Card size="sm">
+                <CardHeader>
+                    <CardTitle>Apply selected fixes as</CardTitle>
+                    <CardDescription>Set per repository</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ul className="divide-y text-sm">
+                        <li className="flex justify-between py-2"><span>Fix branch + pull request</span><span className="text-muted-foreground">Default</span></li>
+                        <li className="py-2">Direct commit</li>
+                        <li className="py-2">Suggestion comment</li>
+                    </ul>
+                </CardContent>
+            </Card>
+        ),
     },
     {
-        id: "apply",
-        title: "Apply & re-review",
-        desc: "All approved fixes land as one atomic commit, triggering a fresh review automatically.",
-    }
+        id: "recheck",
+        label: "Re-check",
+        title: "Scan again",
+        body: "After a fix is applied, the updated pull request is scanned again, so you can see the finding is gone and nothing new appeared.",
+        visual: (
+            <Card size="sm">
+                <CardHeader>
+                    <CardTitle>Re-check</CardTitle>
+                    <CardDescription>Updated pull request scanned</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ul className="space-y-2 text-sm">
+                        <li className="flex items-center gap-2"><Check className="size-4 shrink-0" aria-hidden />Potential SQL injection: resolved</li>
+                        <li className="flex items-center gap-2"><Check className="size-4 shrink-0" aria-hidden />No new issues introduced</li>
+                    </ul>
+                </CardContent>
+            </Card>
+        ),
+    },
 ];
 
-function ActiveStepVisual({ stepId }: { stepId: string }) {
-    if (stepId === "connect") {
-        return (
-            <div className="flex-1 flex items-center justify-center p-8 bg-muted/10 h-full">
-                <div className="flex items-center gap-4 text-muted-foreground">
-                    <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center text-background">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-                    </div>
-                    <div className="h-0.5 w-12 bg-border"></div>
-                    <div className="w-16 h-16 rounded-xl bg-muted border flex items-center justify-center font-bold text-foreground">
-                        PRism
-                    </div>
-                </div>
-            </div>
-        );
-    }
-    
-    if (stepId === "detect") {
-        return (
-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
-                <PRPanel disableBadges />
-            </div>
-        );
-    }
-    
-    if (stepId === "classify") {
-        return (
-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
-                <PRPanel highlightBadges />
-            </div>
-        );
-    }
-    
-    if (stepId === "fix") {
-        return (
-            <div className="flex-1 p-6 bg-muted/10 h-full flex items-center">
-                <PRPanel highlightFix />
-            </div>
-        );
-    }
-    
-    if (stepId === "validate") {
-        return (
-            <div className="flex-1 p-6 bg-muted/10 h-full flex flex-col justify-center gap-4">
-                <div className="border rounded-md overflow-hidden bg-background shadow-sm">
-                    <div className="bg-muted/50 px-4 py-2 border-b text-xs font-mono text-muted-foreground flex justify-between">
-                        <span>src/api/auth.ts</span>
-                        <span>acme/web-app #142</span>
-                    </div>
-                    <div className="p-4 font-mono text-sm overflow-x-auto">
-                        <div className="text-destructive bg-destructive/10 px-2 py-0.5">{"- export const login = async (req) => {"}</div>
-                        <div className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5">{"+ export const login = rateLimit(async (req) => {"}</div>
-                    </div>
-                </div>
-                <div className="bg-background border rounded-md p-4 space-y-3 shadow-sm">
-                    <h4 className="text-sm font-medium">Validation Checklist</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        Original finding resolved
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        0 new findings introduced
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        Head SHA unchanged
-                    </div>
-                </div>
-            </div>
-        );
-    }
-    
-    if (stepId === "apply") {
-        return (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-muted/10 h-full">
-                <div className="bg-background border rounded-lg p-6 shadow-sm w-full max-w-sm space-y-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        </div>
-                        <div className="flex-1">
-                            <p className="font-medium text-sm">Commit applied</p>
-                            <p className="text-xs text-muted-foreground font-mono">1 commit pushed to acme/web-app</p>
-                        </div>
-                    </div>
-                    <div className="text-xs font-mono bg-muted/50 p-2 rounded text-muted-foreground">
-                        fix: address 2 static analysis findings
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return null;
-}
-
 export default function PipelineSection() {
-    const [activeStep, setActiveStep] = useState(steps[0].id);
-
     return (
-        <section id="pipeline" className="py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
-            <div className="mb-12">
-                <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        <section id="how-it-works" className="scroll-mt-20 py-16 md:py-24 max-w-5xl mx-auto px-6 w-full">
+            <div className="mb-10 space-y-3">
+                <h2 className="font-heading text-3xl md:text-4xl font-bold tracking-tight">
                     How it works
                 </h2>
+                <p className="text-muted-foreground text-lg">
+                    Connect a repository and open a pull request. PRism takes it from there.
+                </p>
             </div>
-            
-            <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-start">
-                <div className="w-full md:w-1/3 md:sticky md:top-24 space-y-2">
+
+            <Tabs defaultValue="scan">
+                <TabsList variant="line" className="w-full justify-start overflow-x-auto">
                     {steps.map((step) => (
-                        <div 
-                            key={step.id}
-                            className={`p-4 rounded-lg cursor-pointer transition-colors ${activeStep === step.id ? 'bg-muted' : 'hover:bg-muted/50'}`}
-                            onClick={() => setActiveStep(step.id)}
-                        >
-                            <h3 className={`font-medium text-lg ${activeStep === step.id ? 'text-foreground' : 'text-muted-foreground'}`}>{step.title}</h3>
-                            {activeStep === step.id && (
-                                <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-                                    {step.desc}
-                                </p>
-                            )}
-                        </div>
+                        <TabsTrigger key={step.id} value={step.id} className="flex-none px-3">
+                            {step.label}
+                        </TabsTrigger>
                     ))}
-                </div>
-                
-                <div className="w-full md:w-2/3 min-h-[450px] border rounded-xl bg-background flex flex-col overflow-hidden shadow-sm">
-                    <ActiveStepVisual stepId={activeStep} />
-                </div>
-            </div>
+                </TabsList>
+                {steps.map((step) => (
+                    <TabsContent key={step.id} value={step.id} className="pt-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
+                            <div className="space-y-3">
+                                <h3 className="text-xl font-medium text-foreground">{step.title}</h3>
+                                <p className="text-base text-muted-foreground leading-relaxed">{step.body}</p>
+                            </div>
+                            {step.visual}
+                        </div>
+                    </TabsContent>
+                ))}
+            </Tabs>
         </section>
     );
 }

@@ -99,8 +99,8 @@ describe('Stage 5 Disconnect Cleanup', () => {
             }),
         };
 
-        let legacyDeleted = null;
-        let nsDeleted = null;
+        let legacyDeleted: any = null;
+        let nsDeleted: string | null = null;
 
         mockPineconeIndex.deleteMany = (args: any) => {
             legacyDeleted = args;
